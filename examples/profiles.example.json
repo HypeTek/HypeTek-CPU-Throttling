@@ -1,0 +1,9 @@
+[
+  {
+    "Id": "example-gaming-3900",
+    "Name": "Gaming 3900 (Example)",
+    "ApplyDC": false,
+    "AC": { "MaxFrequency": 3900, "MinState": 5, "MaxState": 100, "BoostMode": 1, "CoolingPolicy": 1, "Epp": 25 },
+    "DC": { "MaxFrequency": 3200, "MinState": 5, "MaxState": 90, "BoostMode": 0, "CoolingPolicy": 1, "Epp": 60 }
+  }
+]
