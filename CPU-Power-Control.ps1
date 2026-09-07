@@ -1,5 +1,5 @@
 ﻿# HypeTek CPU Power Control
-# Version 0.1.4-single-window
+# Version 0.1.6-storage-cleanup
 
 [CmdletBinding()]
 param()
@@ -8,7 +8,7 @@ Set-StrictMode -Version Latest
 $ErrorActionPreference = 'Stop'
 
 $Root = Split-Path -Parent $PSCommandPath
-$LogRoot = Join-Path $env:LOCALAPPDATA 'HypeTek\CPUPowerControl\logs'
+$LogRoot = Join-Path $env:LOCALAPPDATA 'CPUPowerControl\logs'
 $LogFile = Join-Path $LogRoot 'startup.log'
 
 function Write-StartupLog {

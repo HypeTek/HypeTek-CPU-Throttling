@@ -2,7 +2,7 @@
 
 A lightweight Windows GUI for managing CPU-related Windows power policy settings and saving them as one-click profiles.
 
-**Version:** 0.1.5-power-schemes (test build)  
+**Version:** 0.1.6-storage-cleanup (test build)  
 **Author:** HypeTek
 
 ## What it does
@@ -32,9 +32,11 @@ A lightweight Windows GUI for managing CPU-related Windows power policy settings
 
 Die eigentlichen Profile werden unter
 
-`%APPDATA%\HypeTek\CPUPowerControl\profiles.json`
+`%APPDATA%\CPUPowerControl\profiles.json`
 
 gespeichert.
+
+Weitere Laufzeitdaten werden ebenfalls produktbezogen ohne separaten Herstellerordner gespeichert. Das Startup-Log liegt unter `%LOCALAPPDATA%\CPUPowerControl\logs\startup.log`.
 
 ## Compatibility
 
@@ -108,7 +110,7 @@ HypeTek-CPU-Power-Control/
 └─ .gitignore
 ```
 
-## Current limitations of v0.1.5-power-schemes
+## Current limitations of v0.1.6-storage-cleanup
 
 - First public test build; not yet tested across many CPU generations.
 - Hybrid-core-specific frequency controls (`PROCFREQMAX1` etc.) are not yet exposed separately.
@@ -134,7 +136,7 @@ MIT. See `LICENSE`.
 If the program cannot start, it now shows the actual exception instead of silently closing.
 A log is written to:
 
-`%LOCALAPPDATA%\HypeTek\CPUPowerControl\logs\startup.log`
+`%LOCALAPPDATA%\CPUPowerControl\logs\startup.log`
 
 For troubleshooting you can also start `Start-Debug.cmd`.
 
@@ -154,3 +156,8 @@ Der normale Starter startet Windows PowerShell 5.1 jetzt versteckt und fordert d
 Die Anwendung listet nun die unter Windows gespeicherten Energiepläne über die integrierte `powercfg /list`-Schnittstelle auf. Das umfasst auch selbst angelegte oder von OEM-Software hinzugefügte Pläne, sofern Windows sie in der normalen Energieplanliste führt. Der ausgewählte Plan wird über die Windows Power Policy API aktiviert; im Live-Protokoll erscheint zusätzlich der äquivalente `powercfg /setactive <GUID>`-Befehl.
 
 Die HypeTek-CPU-Profile und die Windows-Energiepläne bleiben bewusst getrennt: Ein CPU-Profil verändert die CPU-Werte des aktuell aktiven Windows-Energieplans.
+
+
+## v0.1.6 Storage cleanup
+
+Interne Laufzeitpfade wurden bereinigt: Profile liegen nun unter `%APPDATA%\CPUPowerControl\profiles.json`, Startprotokolle unter `%LOCALAPPDATA%\CPUPowerControl\logs\startup.log`. Der interne Power-API-Namespace wurde außerdem von einem herstellerspezifischen Namen auf `CpuPowerControl.PowerApi` umgestellt. Produktname, Autor und Lizenzangaben bleiben unverändert.

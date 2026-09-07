@@ -400,7 +400,7 @@ $ui.btnSaveProfile.Add_Click({
 $ui.btnApplyEditor.Add_Click({ try { Invoke-ApplyProfile (Get-EditorProfile) } catch { Set-Status $_.Exception.Message $true } })
 $ui.btnAbout.Add_Click({
     $msg=@"
-HypeTek CPU Power Control v0.1.5-power-schemes
+HypeTek CPU Power Control v0.1.6-storage-cleanup
 by HypeTek
 
 Kompatibilität

@@ -1,4 +1,4 @@
-﻿# v0.1.0 Test Checklist
+﻿# v0.1.6 Test Checklist
 
 This is the first hardware test build. Please test on one profile at a time.
 
@@ -55,3 +55,10 @@ Windows Control Panel power options or `powercfg` can still be used to restore a
 3. Prüfen, ob der Name oben aktualisiert wird und Windows den Plan tatsächlich als aktiv meldet.
 4. Einen selbst erstellten Windows-Energieplan testen, falls vorhanden.
 5. Im Live-Protokoll muss `PowerSetActiveScheme` sowie der äquivalente `powercfg /setactive <GUID>`-Befehl erscheinen.
+
+
+## Storage paths
+
+- Profile storage: `%APPDATA%\CPUPowerControl\profiles.json`
+- Startup log: `%LOCALAPPDATA%\CPUPowerControl\logs\startup.log`
+- Verify that no vendor-specific parent directory is created for application data.

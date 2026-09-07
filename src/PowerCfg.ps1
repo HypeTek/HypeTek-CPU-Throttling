@@ -10,12 +10,12 @@ $script:PowerGuids = [ordered]@{
     Epp          = [Guid]'36687f9e-e3a5-4dbf-b1dc-15eb381c6863' # PERFEPP
 }
 
-if (-not ('HypeTek.PowerApi' -as [type])) {
+if (-not ('CpuPowerControl.PowerApi' -as [type])) {
     Add-Type -TypeDefinition @"
 using System;
 using System.Runtime.InteropServices;
 
-namespace HypeTek {
+namespace CpuPowerControl {
     public static class PowerApi {
         [DllImport("powrprof.dll", SetLastError=true)]
         public static extern uint PowerGetActiveScheme(IntPtr UserRootPowerKey, out IntPtr ActivePolicyGuid);
@@ -44,7 +44,7 @@ namespace HypeTek {
 
 function Get-ActiveSchemeGuid {
     $ptr = [IntPtr]::Zero
-    $result = [HypeTek.PowerApi]::PowerGetActiveScheme([IntPtr]::Zero, [ref]$ptr)
+    $result = [CpuPowerControl.PowerApi]::PowerGetActiveScheme([IntPtr]::Zero, [ref]$ptr)
     if ($result -ne 0 -or $ptr -eq [IntPtr]::Zero) {
         throw "PowerGetActiveScheme failed with Win32 error $result."
     }
@@ -52,7 +52,7 @@ function Get-ActiveSchemeGuid {
         return [Runtime.InteropServices.Marshal]::PtrToStructure($ptr, [type][Guid])
     }
     finally {
-        [void][HypeTek.PowerApi]::LocalFree($ptr)
+        [void][CpuPowerControl.PowerApi]::LocalFree($ptr)
     }
 }
 
@@ -119,10 +119,10 @@ function Get-PowerSettingValue {
     [uint32]$value = 0
 
     if ($Source -eq 'AC') {
-        $result = [HypeTek.PowerApi]::PowerReadACValueIndex([IntPtr]::Zero, [ref]$SchemeGuid, [ref]$sub, [ref]$settingGuid, [ref]$value)
+        $result = [CpuPowerControl.PowerApi]::PowerReadACValueIndex([IntPtr]::Zero, [ref]$SchemeGuid, [ref]$sub, [ref]$settingGuid, [ref]$value)
     }
     else {
-        $result = [HypeTek.PowerApi]::PowerReadDCValueIndex([IntPtr]::Zero, [ref]$SchemeGuid, [ref]$sub, [ref]$settingGuid, [ref]$value)
+        $result = [CpuPowerControl.PowerApi]::PowerReadDCValueIndex([IntPtr]::Zero, [ref]$SchemeGuid, [ref]$sub, [ref]$settingGuid, [ref]$value)
     }
 
     if ($result -ne 0) { return $null }
@@ -149,10 +149,10 @@ function Set-PowerSettingValue {
     $settingGuid = $script:PowerGuids[$Setting]
 
     if ($Source -eq 'AC') {
-        $result = [HypeTek.PowerApi]::PowerWriteACValueIndex([IntPtr]::Zero, [ref]$SchemeGuid, [ref]$sub, [ref]$settingGuid, $Value)
+        $result = [CpuPowerControl.PowerApi]::PowerWriteACValueIndex([IntPtr]::Zero, [ref]$SchemeGuid, [ref]$sub, [ref]$settingGuid, $Value)
     }
     else {
-        $result = [HypeTek.PowerApi]::PowerWriteDCValueIndex([IntPtr]::Zero, [ref]$SchemeGuid, [ref]$sub, [ref]$settingGuid, $Value)
+        $result = [CpuPowerControl.PowerApi]::PowerWriteDCValueIndex([IntPtr]::Zero, [ref]$SchemeGuid, [ref]$sub, [ref]$settingGuid, $Value)
     }
 
     if ($result -ne 0) {
@@ -162,7 +162,7 @@ function Set-PowerSettingValue {
 
 function Apply-ActiveScheme {
     param([Guid]$SchemeGuid = (Get-ActiveSchemeGuid))
-    $result = [HypeTek.PowerApi]::PowerSetActiveScheme([IntPtr]::Zero, [ref]$SchemeGuid)
+    $result = [CpuPowerControl.PowerApi]::PowerSetActiveScheme([IntPtr]::Zero, [ref]$SchemeGuid)
     if ($result -ne 0) { throw "PowerSetActiveScheme failed with Win32 error $result." }
 }
 

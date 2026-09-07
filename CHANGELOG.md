@@ -1,5 +1,13 @@
 ﻿# Changelog
 
+## 0.1.6-storage-cleanup - 2026-09-07
+
+- Profilpfad auf `%APPDATA%\CPUPowerControl\profiles.json` bereinigt
+- Startup-Logpfad auf `%LOCALAPPDATA%\CPUPowerControl\logs\startup.log` bereinigt
+- internen Power-API-Namespace auf den neutralen Namen `CpuPowerControl.PowerApi` umgestellt
+- README und Testdokumentation auf die neuen Laufzeitpfade aktualisiert
+- Versionsanzeige auf v0.1.6-storage-cleanup aktualisiert
+
 ## 0.1.5-power-schemes - 2026-09-07
 - Auswahl und Aktivierung aller von Windows gelisteten Energiepläne direkt in der GUI
 - eigene / benutzerdefinierte Windows-Energiepläne werden ebenfalls angezeigt, sofern `powercfg /list` sie führt

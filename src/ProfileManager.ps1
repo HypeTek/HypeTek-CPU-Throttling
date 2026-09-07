@@ -1,6 +1,6 @@
 ﻿Set-StrictMode -Version Latest
 
-$script:AppDataRoot = Join-Path $env:APPDATA 'HypeTek\CPUPowerControl'
+$script:AppDataRoot = Join-Path $env:APPDATA 'CPUPowerControl'
 $script:ProfilesPath = Join-Path $script:AppDataRoot 'profiles.json'
 $script:SettingsPath = Join-Path $script:AppDataRoot 'settings.json'
 
