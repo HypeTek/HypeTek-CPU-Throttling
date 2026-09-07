@@ -2,7 +2,7 @@
 
 A lightweight Windows GUI for managing CPU-related Windows power policy settings and saving them as one-click profiles.
 
-**Version:** 0.1.6-storage-cleanup (test build)  
+**Version:** 0.1.7-ui-fix (test build)  
 **Author:** HypeTek
 
 ## What it does
@@ -110,7 +110,7 @@ HypeTek-CPU-Power-Control/
 └─ .gitignore
 ```
 
-## Current limitations of v0.1.6-storage-cleanup
+## Current limitations of v0.1.7-ui-fix
 
 - First public test build; not yet tested across many CPU generations.
 - Hybrid-core-specific frequency controls (`PROCFREQMAX1` etc.) are not yet exposed separately.
@@ -157,6 +157,11 @@ Die Anwendung listet nun die unter Windows gespeicherten Energiepläne über die
 
 Die HypeTek-CPU-Profile und die Windows-Energiepläne bleiben bewusst getrennt: Ein CPU-Profil verändert die CPU-Werte des aktuell aktiven Windows-Energieplans.
 
+
+## v0.1.7 UI fix
+
+- The battery/DC apply option now uses its own row so the label stays fully readable at smaller window widths.
+- Added a tooltip explaining the DC apply behavior.
 
 ## v0.1.6 Storage cleanup
 

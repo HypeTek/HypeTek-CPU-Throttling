@@ -1,5 +1,5 @@
 ﻿# HypeTek CPU Power Control
-# Version 0.1.6-storage-cleanup
+# Version 0.1.7-ui-fix
 
 [CmdletBinding()]
 param()

@@ -1,5 +1,12 @@
 ﻿# Changelog
 
+## 0.1.7-ui-fix - 2026-09-07
+
+- Profil-Editor responsiver gemacht
+- Checkbox "Akkubetrieb (DC) mit anwenden" in eine eigene Zeile verschoben, damit der Text auch bei kleineren Fensterbreiten vollständig sichtbar bleibt
+- Tooltip für die DC-Profiloption ergänzt
+- Versionsanzeige auf v0.1.7-ui-fix aktualisiert
+
 ## 0.1.6-storage-cleanup - 2026-09-07
 
 - Profilpfad auf `%APPDATA%\CPUPowerControl\profiles.json` bereinigt

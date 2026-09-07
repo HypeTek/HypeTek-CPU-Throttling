@@ -1,4 +1,4 @@
-﻿# v0.1.6 Test Checklist
+﻿# v0.1.7 Test Checklist
 
 This is the first hardware test build. Please test on one profile at a time.
 
