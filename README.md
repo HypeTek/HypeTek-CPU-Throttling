@@ -1,168 +1,120 @@
-﻿# HypeTek CPU Power Control
+# HypeTek CPU Throttling
 
-A lightweight Windows GUI for managing CPU-related Windows power policy settings and saving them as one-click profiles.
+Windows GUI for controlling documented CPU-related Windows power-policy settings with reusable one-click profiles.
 
-**Version:** 0.1.7-ui-fix (test build)  
+**Version:** 0.2.0  
 **Author:** HypeTek
 
-## What it does
+## Quick start
 
-- Maximum processor frequency in MHz (`PROCFREQMAX`)
+1. Download and fully extract the Windows release ZIP.
+2. Double-click **`HypeTek-CPU-Throttling.exe`** in the top-level folder.
+3. Confirm the Windows UAC prompt.
+4. On first start, confirm the safety notice.
+5. Adjust the example profiles for your own CPU before relying on them.
+
+The release package is intentionally simple:
+
+```text
+HypeTek-CPU-Throttling-v0.2.0/
+├─ HypeTek-CPU-Throttling.exe
+├─ README.md
+└─ app/
+   ├─ CPU-Throttling.ps1
+   ├─ Start-CPU-Throttling.cmd
+   ├─ resources/
+   ├─ src/
+   └─ ...
+```
+
+## Highlights
+
+- Rebranded from **HypeTek CPU Power Control** to **HypeTek CPU Throttling**
+- Native Windows **EXE** as the recommended launcher
+- UAC elevation handled by the EXE
+- No visible PowerShell console during normal EXE startup
+- Main window is brought to the foreground on startup
+- Live CPU load and dynamic clock estimate
+- Visible active Windows frequency limit
+- Automatic matching of saved profiles to currently read Windows values
+- Create, edit, duplicate, delete, import and export profiles
+- Diagnostic text export
+- HypeTek cyberpunk default wallpaper plus custom backgrounds
+- Fill / Fit / Stretch background modes and adjustable dimming
+- Optional yellow editor warning can be disabled in **Einstellungen**
+- Existing v0.1.x profiles/settings remain compatible
+
+## What it controls
+
+The application changes documented Windows processor power-policy values in the currently active Windows energy plan:
+
+- Maximum processor frequency (`PROCFREQMAX`)
 - Minimum processor state (`PROCTHROTTLEMIN`)
 - Maximum processor state (`PROCTHROTTLEMAX`)
 - Processor performance boost mode (`PERFBOOSTMODE`)
 - System cooling policy (`SYSCOOLPOL`)
 - Energy Performance Preference / EPP (`PERFEPP`)
 - Separate AC and battery/DC values
-- Create, rename, edit, duplicate and delete profiles
-- Save the current Windows values as a new profile
-- One-click profile buttons
-- Restore the values from immediately before the last profile application
-- Shows equivalent `powercfg` commands for transparency
-- Detects whether each Windows power setting can be read on the current platform
-- Lists all installed Windows power schemes, including user-created schemes, and switches them from the GUI
+- Installed Windows power-scheme selection
 
-## Quick start (Deutsch)
+It does **not** change CPU voltage, BIOS/UEFI settings or traditional overclocking controls.
 
-1. ZIP entpacken.
-2. `Start-CPU-Power-Control.cmd` doppelklicken. Der Starter verwendet im Hintergrund `Start-CPU-Power-Control.vbs`, damit kein PowerShell-/Konsolenfenster offen bleibt.
-3. UAC-Abfrage bestätigen. Danach sollte nur das WPF-App-Fenster sichtbar sein.
-4. Beim ersten Start den Sicherheits-/Kompatibilitätshinweis lesen.
-5. Beispielprofile **nicht blind übernehmen** – Werte an die eigene CPU anpassen.
+### No manual Windows setting unlock required
 
-Die eigentlichen Profile werden unter
+You do **not** need to unhide the advanced MHz option in the classic Windows power-options dialog before using the app. HypeTek CPU Throttling reads and writes the Windows power-policy setting directly. If `Freq ✓` is shown in the compatibility panel, the frequency limit is available to the app even when Windows hides the setting from its own GUI.
 
-`%APPDATA%\CPUPowerControl\profiles.json`
+## Live telemetry
 
-gespeichert.
+The top panel refreshes approximately once per second and shows:
 
-Weitere Laufzeitdaten werden ebenfalls produktbezogen ohne separaten Herstellerordner gespeichert. Das Startup-Log liegt unter `%LOCALAPPDATA%\CPUPowerControl\logs\startup.log`.
+- CPU load from low-overhead Windows `GetSystemTimes` deltas
+- current clock derived from Windows `% Processor Performance × base clock`
+- the currently configured Windows maximum-frequency limit
 
-## Compatibility
+CPU temperature is intentionally **not** shown. Reliable CPU-package/core temperatures on Windows generally require an additional hardware-monitoring source such as LibreHardwareMonitor or HWiNFO. Generic ACPI thermal-zone values are not treated as CPU-package temperature.
 
-### PowerShell requirement
+The live clock is an operating-system estimate and can differ slightly from Task Manager or dedicated monitoring tools because sampling methods and timestamps differ.
 
-- **PowerShell 7 is not required.**
-- The normal launcher deliberately uses the built-in **Windows PowerShell 5.1** (`powershell.exe`) for maximum Windows 10/11 compatibility.
-- Version 0.1.2 fixes a UTF-8-without-BOM source encoding problem that could make Windows PowerShell 5.1 report misleading parser errors such as missing quotes/braces.
-- `Test-Syntax.cmd` can be used to parse-check all PowerShell source files with the PowerShell version installed on the PC.
+## Einstellungen / appearance
 
+Use **Einstellungen** to configure:
 
-- Windows 10 desktop editions
-- Windows 11 desktop editions
-- Primarily tested/designed for x64 Windows
-- Intel and AMD CPUs are supported in principle **when Windows, the CPU and platform firmware expose and honor the corresponding power policy setting**.
+- bundled HypeTek standard wallpaper
+- custom wallpaper
+- Fill / Fit / Stretch mode
+- background dimming
+- visibility of the yellow editor warning
 
-A setting being readable by Windows does **not** guarantee that every CPU/firmware combination will obey it. Modern hybrid CPUs, OEM Dynamic Tuning frameworks and vendor utilities may override or ignore some limits.
+**Standarddesign** resets only wallpaper, image mode and dimming. It does not modify CPU profiles or Windows power settings.
 
-### Windows documentation basis
+## Profile management
 
-The project uses documented Windows processor power policy settings, including `PROCFREQMAX`, `PROCTHROTTLEMIN`, `PROCTHROTTLEMAX` and `PERFBOOSTMODE`. The application writes through the Windows Power Policy API and then re-activates the current power scheme.
+Profiles can be created, captured from current Windows values, edited, duplicated, deleted, imported from JSON and exported to JSON. A profile whose stored values match the currently read Windows values is highlighted and shown as the active HypeTek profile.
 
-## Safety / disclaimer
+## Data compatibility
 
-**Use at your own risk.**
-
-HypeTek CPU Power Control changes Windows power-management policy values. It does **not** change CPU core voltage, BIOS/UEFI settings or traditional overclocking parameters.
-
-Nevertheless, unsuitable settings can cause:
-
-- reduced performance
-- unusual clock behavior
-- increased power consumption or temperatures
-- instability on some systems
-- conflicts with OEM/vendor power-management software
-
-The software is provided without warranty; HypeTek is not responsible for damage, data loss, instability or other consequences resulting from its use.
-
-## Maximum frequency and `0`
-
-The GUI accepts `0` for maximum frequency to represent the platform/default state commonly used by Windows power schemes (effectively no additional MHz cap). Explicit limits may be entered from 100 to 64000 MHz.
-
-## Boost mode values
-
-- `0` Disabled
-- `1` Enabled
-- `2` Aggressive
-- `3` Efficient enabled
-- `4` Efficient aggressive
-
-Not every mode behaves differently on every CPU. The platform ultimately decides what is supported.
-
-## Repository structure
+To avoid losing existing profiles during the rebrand, v0.2.0 intentionally keeps the existing runtime paths:
 
 ```text
-HypeTek-CPU-Power-Control/
-├─ CPU-Power-Control.ps1
-├─ Start-CPU-Power-Control.cmd
-├─ Start-CPU-Power-Control.vbs
-├─ src/
-│  ├─ Main.ps1
-│  ├─ MainWindow.xaml
-│  ├─ PowerCfg.ps1
-│  └─ ProfileManager.ps1
-├─ examples/
-│  └─ profiles.example.json
-├─ README.md
-├─ CHANGELOG.md
-├─ SECURITY.md
-├─ LICENSE
-└─ .gitignore
+%APPDATA%\CPUPowerControl\profiles.json
+%APPDATA%\CPUPowerControl\settings.json
+%LOCALAPPDATA%\CPUPowerControl\logs\startup.log
 ```
 
-## Current limitations of v0.1.7-ui-fix
+No destructive migration is performed.
 
-- First public test build; not yet tested across many CPU generations.
-- Hybrid-core-specific frequency controls (`PROCFREQMAX1` etc.) are not yet exposed separately.
-- No vendor-specific Intel XTU / AMD Ryzen Master controls.
-- No voltage control by design.
-- No temperature monitoring yet.
-- CPU profiles are applied to whichever Windows power scheme is active at the moment they are clicked. Windows power schemes can now be switched separately from the GUI.
+## Requirements
 
-## Planned next steps
+- Windows 10 or Windows 11
+- Administrator rights for power-policy changes
+- Windows PowerShell 5.1 components included with Windows
+- .NET Framework / WPF components included with Windows
+- Intel or AMD CPU; individual settings depend on Windows, CPU, firmware and OEM support
 
-- Wider Intel/AMD compatibility testing
-- Better hybrid P-core/E-core awareness
-- Import/export profiles
-- Optional portable profile storage
-- Diagnostic export for GitHub issues
-- Signed release / packaged executable after the script build is stable
+## Safety
+
+Use at your own risk. Valid Windows power-policy values can still reduce performance, increase temperatures or power use, behave differently across CPUs, or be overridden by OEM/vendor power-management software.
 
 ## License
 
-MIT. See `LICENSE`.
-
-## Startup troubleshooting (0.1.2-ps51-fix)
-If the program cannot start, it now shows the actual exception instead of silently closing.
-A log is written to:
-
-`%LOCALAPPDATA%\CPUPowerControl\logs\startup.log`
-
-For troubleshooting you can also start `Start-Debug.cmd`.
-
-
-## v0.1.3 Live-Ausführung
-
-Der Bereich **Erweiterte Informationen** trennt nun die Editor-Vorschau vom tatsächlichen Anwenden eines Profils. Beim Klick auf einen Profilbutton protokolliert die App die Power-Policy-API-Schreibvorgänge und zeigt dazu die äquivalenten `powercfg`-Befehle.
-
-
-## v0.1.4 Single-Window-Start
-
-Der normale Starter startet Windows PowerShell 5.1 jetzt versteckt und fordert die Administratorrechte direkt über einen kleinen VBScript-Launcher an. Nach der UAC-Abfrage bleibt nur die WPF-Anwendung sichtbar. `Start-Debug.cmd` öffnet absichtlich weiterhin ein Konsolenfenster und ist nur für Fehlersuche gedacht.
-
-
-## v0.1.5 Windows-Energiepläne
-
-Die Anwendung listet nun die unter Windows gespeicherten Energiepläne über die integrierte `powercfg /list`-Schnittstelle auf. Das umfasst auch selbst angelegte oder von OEM-Software hinzugefügte Pläne, sofern Windows sie in der normalen Energieplanliste führt. Der ausgewählte Plan wird über die Windows Power Policy API aktiviert; im Live-Protokoll erscheint zusätzlich der äquivalente `powercfg /setactive <GUID>`-Befehl.
-
-Die HypeTek-CPU-Profile und die Windows-Energiepläne bleiben bewusst getrennt: Ein CPU-Profil verändert die CPU-Werte des aktuell aktiven Windows-Energieplans.
-
-
-## v0.1.7 UI fix
-
-- The battery/DC apply option now uses its own row so the label stays fully readable at smaller window widths.
-- Added a tooltip explaining the DC apply behavior.
-
-## v0.1.6 Storage cleanup
-
-Interne Laufzeitpfade wurden bereinigt: Profile liegen nun unter `%APPDATA%\CPUPowerControl\profiles.json`, Startprotokolle unter `%LOCALAPPDATA%\CPUPowerControl\logs\startup.log`. Der interne Power-API-Namespace wurde außerdem von einem herstellerspezifischen Namen auf `CpuPowerControl.PowerApi` umgestellt. Produktname, Autor und Lizenzangaben bleiben unverändert.
+MIT License — Copyright © 2026 HypeTek

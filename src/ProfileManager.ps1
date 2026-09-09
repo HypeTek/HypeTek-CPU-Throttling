@@ -3,6 +3,7 @@
 $script:AppDataRoot = Join-Path $env:APPDATA 'CPUPowerControl'
 $script:ProfilesPath = Join-Path $script:AppDataRoot 'profiles.json'
 $script:SettingsPath = Join-Path $script:AppDataRoot 'settings.json'
+$script:AppearanceAssetsRoot = Join-Path $script:AppDataRoot 'assets'
 
 function Initialize-AppData {
     if (-not (Test-Path $script:AppDataRoot)) {
@@ -29,8 +30,18 @@ function Initialize-AppData {
         Save-Profiles -Profiles $defaults
     }
 
+    if (-not (Test-Path $script:AppearanceAssetsRoot)) {
+        New-Item -ItemType Directory -Path $script:AppearanceAssetsRoot -Force | Out-Null
+    }
+
     if (-not (Test-Path $script:SettingsPath)) {
-        @{ DisclaimerAccepted = $false } | ConvertTo-Json | Set-Content -Path $script:SettingsPath -Encoding UTF8
+        [ordered]@{
+            DisclaimerAccepted = $false
+            BackgroundImage = '@default'
+            BackgroundMode = 'Cover'
+            BackgroundDim = 52
+            ShowEditorHint = $true
+        } | ConvertTo-Json | Set-Content -Path $script:SettingsPath -Encoding UTF8
     }
 }
 
@@ -58,11 +69,29 @@ function Save-Profiles {
 function Get-AppSettings {
     Initialize-AppData
     try {
-        return (Get-Content $script:SettingsPath -Raw -Encoding UTF8 | ConvertFrom-Json)
+        $settings = Get-Content $script:SettingsPath -Raw -Encoding UTF8 | ConvertFrom-Json
     }
     catch {
-        return [pscustomobject]@{ DisclaimerAccepted = $false }
+        $settings = [pscustomobject]@{ DisclaimerAccepted = $false }
     }
+
+    # Backward-compatible appearance defaults. Existing v0.1.x settings remain valid.
+    if (-not $settings.PSObject.Properties['DisclaimerAccepted']) {
+        $settings | Add-Member -NotePropertyName DisclaimerAccepted -NotePropertyValue $false -Force
+    }
+    if (-not $settings.PSObject.Properties['BackgroundImage']) {
+        $settings | Add-Member -NotePropertyName BackgroundImage -NotePropertyValue '@default' -Force
+    }
+    if (-not $settings.PSObject.Properties['BackgroundMode']) {
+        $settings | Add-Member -NotePropertyName BackgroundMode -NotePropertyValue 'Cover' -Force
+    }
+    if (-not $settings.PSObject.Properties['BackgroundDim']) {
+        $settings | Add-Member -NotePropertyName BackgroundDim -NotePropertyValue 52 -Force
+    }
+    if (-not $settings.PSObject.Properties['ShowEditorHint']) {
+        $settings | Add-Member -NotePropertyName ShowEditorHint -NotePropertyValue $true -Force
+    }
+    return $settings
 }
 
 function Save-AppSettings {
