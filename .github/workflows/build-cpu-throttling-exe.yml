@@ -3,6 +3,7 @@ name: Build CPU Throttling EXE
 on:
   push:
     branches:
+      - main
       - feature/cpu-throttling-exe-layout
   workflow_dispatch:
 
@@ -13,12 +14,29 @@ jobs:
       - name: Checkout
         uses: actions/checkout@v4
 
+      - name: PowerShell 5.1 syntax test
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Test-Syntax.ps1
+          if ($LASTEXITCODE -ne 0) { throw "PowerShell parser test failed" }
+
       - name: Prepare HypeTek icon
         shell: powershell
         run: |
-          New-Item -ItemType Directory -Force -Path resources | Out-Null
-          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/HypeTek/HypeTek-Bookmarker/main/resources/app.ico" -OutFile "resources\app.ico"
-          if (-not (Test-Path "resources\app.ico")) { throw "app.ico download failed" }
+          if (-not (Test-Path resources\app.ico)) {
+            Add-Type -AssemblyName System.Drawing
+            $src = [System.Drawing.Image]::FromFile((Resolve-Path resources\app-logo.jpg))
+            $bmp = New-Object System.Drawing.Bitmap 256,256
+            $g = [System.Drawing.Graphics]::FromImage($bmp)
+            $g.Clear([System.Drawing.Color]::Transparent)
+            $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+            $g.DrawImage($src,0,0,256,256)
+            $hIcon = $bmp.GetHicon()
+            $icon = [System.Drawing.Icon]::FromHandle($hIcon)
+            $fs = [System.IO.File]::Create((Join-Path (Resolve-Path resources) 'app.ico'))
+            $icon.Save($fs)
+            $fs.Close(); $icon.Dispose(); $g.Dispose(); $bmp.Dispose(); $src.Dispose()
+          }
 
       - name: Build HypeTek CPU Throttling EXE
         shell: powershell
@@ -49,6 +67,6 @@ jobs:
       - name: Upload EXE
         uses: actions/upload-artifact@v4
         with:
-          name: HypeTek-CPU-Throttling-native-launcher
+          name: HypeTek-CPU-Throttling-v0.2.0
           path: dist/HypeTek-CPU-Throttling.exe
           if-no-files-found: error
