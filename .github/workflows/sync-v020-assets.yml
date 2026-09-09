@@ -18,23 +18,28 @@ jobs:
         with:
           fetch-depth: 0
 
-      - name: Sync tested HypeTek visuals
+      - name: Sync HypeTek visuals
         shell: powershell
         run: |
           New-Item -ItemType Directory -Force -Path resources | Out-Null
           Invoke-WebRequest -Uri "https://raw.githubusercontent.com/HypeTek/HypeTek-Bookmarker/main/resources/app.ico" -OutFile "resources\app.ico"
           Invoke-WebRequest -Uri "https://raw.githubusercontent.com/HypeTek/HypeTek-Bookmarker/main/resources/default-wallpaper.jpg" -OutFile "resources\default-wallpaper.jpg"
 
-          Add-Type -AssemblyName System.Drawing
-          $ico = New-Object System.Drawing.Icon((Resolve-Path 'resources\app.ico'))
-          $src = $ico.ToBitmap()
-          $canvas = New-Object System.Drawing.Bitmap 512,512
-          $g = [System.Drawing.Graphics]::FromImage($canvas)
-          $g.Clear([System.Drawing.Color]::Black)
-          $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
-          $g.DrawImage($src,6,6,500,500)
-          $canvas.Save((Join-Path (Resolve-Path resources) 'app-logo.jpg'), [System.Drawing.Imaging.ImageFormat]::Jpeg)
-          $g.Dispose(); $canvas.Dispose(); $src.Dispose(); $ico.Dispose()
+          Add-Type -AssemblyName PresentationCore
+          $iconPath = (Resolve-Path 'resources\app.ico').Path
+          $uri = New-Object System.Uri($iconPath, [System.UriKind]::Absolute)
+          $decoder = [System.Windows.Media.Imaging.BitmapDecoder]::Create(
+            $uri,
+            [System.Windows.Media.Imaging.BitmapCreateOptions]::PreservePixelFormat,
+            [System.Windows.Media.Imaging.BitmapCacheOption]::OnLoad
+          )
+          $frame = $decoder.Frames | Sort-Object PixelWidth -Descending | Select-Object -First 1
+          if (-not $frame) { throw 'Could not decode app.ico' }
+          $encoder = New-Object System.Windows.Media.Imaging.JpegBitmapEncoder
+          $encoder.QualityLevel = 92
+          [void]$encoder.Frames.Add($frame)
+          $stream = [System.IO.File]::Create((Join-Path (Resolve-Path resources) 'app-logo.jpg'))
+          try { $encoder.Save($stream) } finally { $stream.Dispose() }
 
           git config user.name "HypeTek Build"
           git config user.email "actions@users.noreply.github.com"
