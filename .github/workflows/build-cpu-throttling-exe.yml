@@ -23,20 +23,9 @@ jobs:
       - name: Prepare HypeTek icon
         shell: powershell
         run: |
-          if (-not (Test-Path resources\app.ico)) {
-            Add-Type -AssemblyName System.Drawing
-            $src = [System.Drawing.Image]::FromFile((Resolve-Path resources\app-logo.jpg))
-            $bmp = New-Object System.Drawing.Bitmap 256,256
-            $g = [System.Drawing.Graphics]::FromImage($bmp)
-            $g.Clear([System.Drawing.Color]::Transparent)
-            $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
-            $g.DrawImage($src,0,0,256,256)
-            $hIcon = $bmp.GetHicon()
-            $icon = [System.Drawing.Icon]::FromHandle($hIcon)
-            $fs = [System.IO.File]::Create((Join-Path (Resolve-Path resources) 'app.ico'))
-            $icon.Save($fs)
-            $fs.Close(); $icon.Dispose(); $g.Dispose(); $bmp.Dispose(); $src.Dispose()
-          }
+          New-Item -ItemType Directory -Force -Path resources | Out-Null
+          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/HypeTek/HypeTek-Bookmarker/main/resources/app.ico" -OutFile "resources\app.ico"
+          if (-not (Test-Path "resources\app.ico")) { throw "app.ico download failed" }
 
       - name: Build HypeTek CPU Throttling EXE
         shell: powershell
