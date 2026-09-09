@@ -1,0 +1,54 @@
+name: Build CPU Throttling EXE
+
+on:
+  push:
+    branches:
+      - feature/cpu-throttling-exe-layout
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: windows-2022
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Prepare HypeTek icon
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force -Path resources | Out-Null
+          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/HypeTek/HypeTek-Bookmarker/main/resources/app.ico" -OutFile "resources\app.ico"
+          if (-not (Test-Path "resources\app.ico")) { throw "app.ico download failed" }
+
+      - name: Build HypeTek CPU Throttling EXE
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          $csc = "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+          if (-not (Test-Path $csc)) { throw "csc.exe not found: $csc" }
+
+          $automation = Get-ChildItem "$env:WINDIR\Microsoft.NET\assembly\GAC_MSIL\System.Management.Automation" -Recurse -Filter System.Management.Automation.dll -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+          if (-not $automation) {
+            $automation = Get-ChildItem "$env:WINDIR\assembly\GAC_MSIL\System.Management.Automation" -Recurse -Filter System.Management.Automation.dll -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+          }
+          if (-not $automation) { throw "Windows PowerShell System.Management.Automation.dll not found in the GAC" }
+
+          & $csc /nologo /target:winexe /platform:anycpu /optimize+ `
+            /win32icon:resources\app.ico `
+            /win32manifest:src\app.manifest `
+            /out:dist\HypeTek-CPU-Throttling.exe `
+            /reference:System.dll `
+            /reference:System.Core.dll `
+            /reference:System.Windows.Forms.dll `
+            /reference:"$automation" `
+            src\CpuThrottlingLauncher.cs
+
+          if ($LASTEXITCODE -ne 0) { throw "C# compiler failed with exit code $LASTEXITCODE" }
+          Get-Item dist\HypeTek-CPU-Throttling.exe | Format-List Name,Length,LastWriteTime
+
+      - name: Upload EXE
+        uses: actions/upload-artifact@v4
+        with:
+          name: HypeTek-CPU-Throttling-native-launcher
+          path: dist/HypeTek-CPU-Throttling.exe
+          if-no-files-found: error
