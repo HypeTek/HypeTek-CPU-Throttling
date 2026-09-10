@@ -1,4 +1,4 @@
-﻿# HypeTek CPU Throttling - parser self-test
+# HypeTek CPU Throttling - parser and lightweight runtime-contract self-test
 # Designed for Windows PowerShell 5.1+
 
 $ErrorActionPreference = 'Stop'
@@ -27,7 +27,25 @@ foreach ($file in $files) {
     }
 }
 
+if (-not $failed) {
+    try {
+        . (Join-Path $root 'src\PowerCfg.ps1')
+        . (Join-Path $root 'src\ProfileManager.ps1')
+
+        foreach ($commandName in @('Get-ActiveSchemeGuid','Get-PowerSchemes','Get-ActivePowerScheme','Set-PowerSettingValue','Apply-ActiveScheme')) {
+            if (-not (Get-Command $commandName -CommandType Function -ErrorAction SilentlyContinue)) {
+                throw "Required runtime function is missing: $commandName"
+            }
+            Write-Host "OK  runtime function $commandName" -ForegroundColor Green
+        }
+    }
+    catch {
+        $failed = $true
+        Write-Host ("ERR runtime contract: {0}" -f $_.Exception.Message) -ForegroundColor Red
+    }
+}
+
 if ($failed) { exit 1 }
 Write-Host ''
-Write-Host 'All PowerShell files parsed successfully.' -ForegroundColor Green
+Write-Host 'All PowerShell files parsed and required runtime functions are available.' -ForegroundColor Green
 exit 0
