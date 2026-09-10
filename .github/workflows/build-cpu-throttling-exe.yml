@@ -20,15 +20,27 @@ jobs:
           powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Test-Syntax.ps1
           if ($LASTEXITCODE -ne 0) { throw "PowerShell parser test failed" }
 
-      - name: Prepare HypeTek icon
+      - name: Prepare compiler-compatible HypeTek icon
         shell: powershell
         run: |
-          if (-not (Test-Path "resources\app.ico")) { throw "resources\app.ico missing" }
+          if (-not (Test-Path "resources\app-logo.jpg")) { throw "resources\app-logo.jpg missing" }
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Add-Type -AssemblyName System.Drawing
+          $src = [System.Drawing.Image]::FromFile((Resolve-Path "resources\app-logo.jpg"))
+          $bmp = New-Object System.Drawing.Bitmap 256,256
+          $g = [System.Drawing.Graphics]::FromImage($bmp)
+          $g.Clear([System.Drawing.Color]::Black)
+          $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+          $g.DrawImage($src,0,0,256,256)
+          $hIcon = $bmp.GetHicon()
+          $icon = [System.Drawing.Icon]::FromHandle($hIcon)
+          $fs = [System.IO.File]::Create((Join-Path (Resolve-Path dist) 'app-build.ico'))
+          try { $icon.Save($fs) } finally { $fs.Dispose(); $icon.Dispose(); $g.Dispose(); $bmp.Dispose(); $src.Dispose() }
+          if (-not (Test-Path "dist\app-build.ico")) { throw "Compiler icon generation failed" }
 
       - name: Build HypeTek CPU Throttling EXE
         shell: powershell
         run: |
-          New-Item -ItemType Directory -Force -Path dist | Out-Null
           $csc = "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
           if (-not (Test-Path $csc)) { throw "csc.exe not found: $csc" }
 
@@ -39,7 +51,7 @@ jobs:
           if (-not $automation) { throw "Windows PowerShell System.Management.Automation.dll not found in the GAC" }
 
           & $csc /nologo /target:winexe /platform:anycpu /optimize+ `
-            /win32icon:resources\app.ico `
+            /win32icon:dist\app-build.ico `
             /win32manifest:src\app.manifest `
             /out:dist\HypeTek-CPU-Throttling.exe `
             /reference:System.dll `
