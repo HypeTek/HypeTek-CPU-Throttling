@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - feature/cpu-throttling-exe-layout
-      - fix/v0.2.0-throttling-consistency
       - main
   workflow_dispatch:
 
