@@ -1,10 +1,10 @@
-﻿# HypeTek CPU Power Control - parser self-test
+﻿# HypeTek CPU Throttling - parser self-test
 # Designed for Windows PowerShell 5.1+
 
 $ErrorActionPreference = 'Stop'
 $root = Split-Path -Parent $PSCommandPath
 $files = @(
-    (Join-Path $root 'CPU-Power-Control.ps1'),
+    (Join-Path $root 'CPU-Throttling.ps1'),
     (Join-Path $root 'src\PowerCfg.ps1'),
     (Join-Path $root 'src\ProfileManager.ps1'),
     (Join-Path $root 'src\Main.ps1')

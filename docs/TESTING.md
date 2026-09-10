@@ -1,64 +1,45 @@
-﻿# v0.1.7 Test Checklist
+﻿# HypeTek CPU Throttling v0.2.0 – Test Checklist
 
-This is the first hardware test build. Please test on one profile at a time.
+## Start / rebrand
+- `HypeTek-CPU-Throttling.exe` starts after UAC confirmation.
+- No additional PowerShell console remains visible during normal EXE startup.
+- Window title and header show **HypeTek CPU Throttling**.
+- HypeTek icon is visible on the EXE and WPF window.
 
-## Before testing
+## Existing data
+- Profiles are stored in `%APPDATA%\HypeTek\CPU-Throttling\profiles.json`.
+- Existing pre-release profiles are imported automatically when the new profile file does not yet exist.
+- Editing/saving a profile still works.
+- `Start-CPU-Throttling.vbs` works as fallback.
 
-- Note the currently active Windows power plan.
-- Keep a temperature/clock monitor open if available.
-- Do not combine the first test with BIOS/XTU/Ryzen Master changes.
+## Live telemetry
+- CPU load updates every few seconds.
+- Current clock and max clock show plausible MHz values or `n/a`.
+- UI remains responsive while telemetry refreshes.
 
-## Basic UI
+## Active profile
+- Apply a saved profile.
+- After refresh the matching profile name appears in the live area.
+- Matching profile button gets a green border.
+- Manually changing Windows values should result in “Benutzerdefiniert / kein gespeichertes Profil” when no profile matches.
 
-- App requests administrator rights.
-- First-run warning is shown once.
-- CPU, Windows version and active power scheme are displayed.
-- Compatibility indicators appear for Freq / Boost / Min / Max / Cooling / EPP.
-- Example profiles appear as buttons.
+## Profile import/export
+- Export all profiles to a JSON file.
+- Import the exported file.
+- Imported profiles are added with new IDs rather than overwriting existing profiles.
 
-## Profile workflow
+## Diagnostic export
+- Export diagnostics to TXT.
+- Verify it contains CPU/OS, energy plan, support flags, AC/DC values and live telemetry.
+- It should not contain passwords or secrets.
 
-1. Click **Aktuelle Werte als Profil**.
-2. Give it a name and save it.
-3. Right-click it and choose **Bearbeiten**.
-4. Change one harmless value, save again and confirm the same button updates.
-5. Duplicate the profile.
-6. Delete the duplicate.
+## Power controls
+- Apply a test profile.
+- Verify supported values change.
+- Restore “Letzte Werte”.
+- Switch a Windows power plan and refresh.
+- Test on battery only when using a laptop and after reviewing DC values.
 
-## Z2 / i7-8700 reference test
-
-For Hype's current test system, the known useful starting point is:
-
-- AC max frequency: 3900 MHz
-- AC minimum processor state: 5%
-- AC maximum processor state: 100%
-- Boost mode: Enabled (1)
-- Cooling policy: Active (1)
-
-EPP can be left at the currently detected value for the first functional test.
-
-After applying, verify the frequency limit with your normal monitoring tool and run a short workload before a long gaming session.
-
-## Restore
-
-After applying any profile, use **Letzte Werte** and verify that the previous power values return.
-
-## If something behaves unexpectedly
-
-Windows Control Panel power options or `powercfg` can still be used to restore a normal power plan. Selecting another standard Windows power plan and activating it is also a useful sanity check.
-
-
-## Windows-Energiepläne
-
-1. Prüfen, ob die Auswahlliste mindestens den aktuell aktiven Windows-Energieplan zeigt.
-2. Wenn mehrere Pläne vorhanden sind, einen anderen Plan auswählen und `Aktivieren` klicken.
-3. Prüfen, ob der Name oben aktualisiert wird und Windows den Plan tatsächlich als aktiv meldet.
-4. Einen selbst erstellten Windows-Energieplan testen, falls vorhanden.
-5. Im Live-Protokoll muss `PowerSetActiveScheme` sowie der äquivalente `powercfg /setactive <GUID>`-Befehl erscheinen.
-
-
-## Storage paths
-
-- Profile storage: `%APPDATA%\CPUPowerControl\profiles.json`
-- Startup log: `%LOCALAPPDATA%\CPUPowerControl\logs\startup.log`
-- Verify that no vendor-specific parent directory is created for application data.
+## Safety
+Do not use aggressive limits blindly. Test with known-safe values for the specific system.
+- Temperature is intentionally not displayed; confirm no ACPI/temperature line appears in the live telemetry or diagnostics export.
