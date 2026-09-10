@@ -12,7 +12,7 @@ $Root = if ($env:HYPETEK_CPU_THROTTLING_BASEDIR) {
 } else {
     Split-Path -Parent $PSCommandPath
 }
-$LogRoot = Join-Path $env:LOCALAPPDATA 'CPUPowerControl\logs'
+$LogRoot = Join-Path $env:LOCALAPPDATA 'HypeTek\CPU-Throttling\logs'
 $LogFile = Join-Path $LogRoot 'startup.log'
 
 function Write-StartupLog {
@@ -60,6 +60,7 @@ try {
         throw 'HypeTek CPU Throttling benötigt Windows 10 oder Windows 11.'
     }
 
+    # WPF requires STA. Windows PowerShell is usually STA, but enforce it explicitly.
     if ([Threading.Thread]::CurrentThread.GetApartmentState() -ne [Threading.ApartmentState]::STA) {
         Write-StartupLog 'Relaunching in STA mode.'
         $args = @('-NoProfile','-STA','-WindowStyle','Hidden','-ExecutionPolicy','Bypass','-File',"`"$PSCommandPath`"")
