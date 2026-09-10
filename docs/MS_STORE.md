@@ -21,8 +21,9 @@ Official references:
 - `src/app.store.manifest` — native EXE manifest with `asInvoker`.
 - `store/AppxManifest.xml` — development MSIX manifest for a packaged Win32 desktop app.
 - `tools/Test-StandardUser-PowerWrite.ps1` — safe permission probe that writes the already configured values back to the active power scheme while running non-elevated.
-- `store/Install-StoreTest.ps1` — development-only helper that trusts the temporary test certificate and installs the MSIX.
+- `store/Install-StoreTest.ps1` — development-only helper that replaces a previous Store-test package, refreshes the temporary CI certificate trust, and installs the current MSIX.
 - `.github/workflows/build-store-msix.yml` — builds a separate x64 Store-test EXE, stages the existing app files, creates an MSIX, signs it with an ephemeral development certificate, and uploads the MSIX + public certificate + test installer as a CI artifact.
+- `Test-Syntax.ps1` additionally validates the runtime function contract used by the UI so missing helper functions are caught by CI instead of only on real hardware.
 
 ## Important: development identity
 
@@ -51,20 +52,26 @@ All supported writes succeeded without elevation:
 
 Result: `PASS: Supported power-setting writes succeeded without elevation.`
 
-This proves that the current documented power-policy write path does not inherently require administrator rights on the tested hardware. The remaining gate is to verify the packaged MSIX application itself end-to-end without UAC.
+This proves that the current documented power-policy write path does not inherently require administrator rights on the tested hardware.
+
+## First MSIX runtime result
+
+The development MSIX installed successfully on a Windows 11 x64 test machine and the packaged application launched far enough to load the full GUI, telemetry, current Windows power scheme, compatibility flags, profiles and user data.
+
+Applying a profile then exposed a code-level runtime defect: `Main.ps1` called `Get-ActivePowerScheme`, but no function with that name was loaded. This was **not** an elevation or MSIX sandbox failure; the lower-level non-elevated write probe had already proved the underlying power APIs work.
+
+The Store branch now provides the missing active-scheme object helper and CI checks the required runtime function contract. The next artifact must be retested for profile apply, editor apply, power-scheme switching and persistence.
 
 ## Validation sequence
 
 1. Run `tools\Test-StandardUser-PowerWrite.ps1` from a **non-elevated** Windows PowerShell 5.1 window.
 2. All supported AC/DC settings should report `WRITE OK`, and `Apply active scheme` should report `OK`.
-3. Download the `HypeTek-CPU-Throttling-Store-Test` workflow artifact.
-4. Extract the artifact and run `Install-StoreTest.ps1` as administrator. The elevation is only used to trust the temporary development certificate and install the test package.
+3. Download the latest `HypeTek-CPU-Throttling-Store-Test` workflow artifact.
+4. Extract the artifact and run `Install-StoreTest.ps1` as administrator. The helper automatically removes an older Store-test package and stale temporary CI certificate before installing this build. User profiles/settings are not removed.
 5. Launch HypeTek CPU Throttling normally from the Start menu. It must not show a UAC prompt.
-6. Verify GUI launch, telemetry, profile load/save, AC/DC changes, profile switching, and restart persistence without elevation.
+6. Verify GUI launch, telemetry, profile load/save, AC/DC changes, editor apply, profile switching, Windows energy-plan switching, import/export and restart persistence without elevation.
 7. After testing, uninstall the test package and remove the development certificate from Local Computer -> Trusted People.
 8. Run Windows App Certification Kit before submission.
-
-If step 1 fails with access denied on supported settings, stop: the no-elevation Store path needs redesign before submission.
 
 ## Store-readiness checklist
 
@@ -76,8 +83,13 @@ If step 1 fails with access denied on supported settings, stop: the no-elevation
 - [x] Standard-user power-write permission probe.
 - [x] Development-only test installer for certificate trust + MSIX install.
 - [x] Standard-user permission probe passes on real target hardware.
-- [ ] MSIX installs and runs on Windows 10/11 test machines.
+- [x] MSIX installs and launches on a Windows 11 x64 test machine.
+- [x] Missing active-power-scheme runtime helper found and fixed on Store branch.
+- [x] CI runtime-contract test added for required power helpers.
+- [ ] Profile apply/editor apply retested successfully in the fixed MSIX.
+- [ ] Windows energy-plan switching retested successfully in the fixed MSIX.
 - [ ] All power/profile features work without UAC.
+- [ ] Restart persistence and import/export verified in the packaged app.
 - [ ] Partner Center developer account ready.
 - [ ] App name reserved and official Store identity copied into manifest.
 - [ ] Final Store icons/screenshots/listing text prepared.
