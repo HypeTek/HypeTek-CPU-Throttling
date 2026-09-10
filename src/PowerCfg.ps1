@@ -10,12 +10,12 @@ $script:PowerGuids = [ordered]@{
     Epp          = [Guid]'36687f9e-e3a5-4dbf-b1dc-15eb381c6863' # PERFEPP
 }
 
-if (-not ('CpuPowerControl.PowerApi' -as [type])) {
+if (-not ('CpuThrottling.PowerApi' -as [type])) {
     Add-Type -TypeDefinition @"
 using System;
 using System.Runtime.InteropServices;
 
-namespace CpuPowerControl {
+namespace CpuThrottling {
     public static class PowerApi {
         [DllImport("powrprof.dll", SetLastError=true)]
         public static extern uint PowerGetActiveScheme(IntPtr UserRootPowerKey, out IntPtr ActivePolicyGuid);
@@ -44,7 +44,7 @@ namespace CpuPowerControl {
 
 function Get-ActiveSchemeGuid {
     $ptr = [IntPtr]::Zero
-    $result = [CpuPowerControl.PowerApi]::PowerGetActiveScheme([IntPtr]::Zero, [ref]$ptr)
+    $result = [CpuThrottling.PowerApi]::PowerGetActiveScheme([IntPtr]::Zero, [ref]$ptr)
     if ($result -ne 0 -or $ptr -eq [IntPtr]::Zero) {
         throw "PowerGetActiveScheme failed with Win32 error $result."
     }
@@ -52,7 +52,7 @@ function Get-ActiveSchemeGuid {
         return [Runtime.InteropServices.Marshal]::PtrToStructure($ptr, [type][Guid])
     }
     finally {
-        [void][CpuPowerControl.PowerApi]::LocalFree($ptr)
+        [void][CpuThrottling.PowerApi]::LocalFree($ptr)
     }
 }
 
@@ -119,10 +119,10 @@ function Get-PowerSettingValue {
     [uint32]$value = 0
 
     if ($Source -eq 'AC') {
-        $result = [CpuPowerControl.PowerApi]::PowerReadACValueIndex([IntPtr]::Zero, [ref]$SchemeGuid, [ref]$sub, [ref]$settingGuid, [ref]$value)
+        $result = [CpuThrottling.PowerApi]::PowerReadACValueIndex([IntPtr]::Zero, [ref]$SchemeGuid, [ref]$sub, [ref]$settingGuid, [ref]$value)
     }
     else {
-        $result = [CpuPowerControl.PowerApi]::PowerReadDCValueIndex([IntPtr]::Zero, [ref]$SchemeGuid, [ref]$sub, [ref]$settingGuid, [ref]$value)
+        $result = [CpuThrottling.PowerApi]::PowerReadDCValueIndex([IntPtr]::Zero, [ref]$SchemeGuid, [ref]$sub, [ref]$settingGuid, [ref]$value)
     }
 
     if ($result -ne 0) { return $null }
@@ -149,10 +149,10 @@ function Set-PowerSettingValue {
     $settingGuid = $script:PowerGuids[$Setting]
 
     if ($Source -eq 'AC') {
-        $result = [CpuPowerControl.PowerApi]::PowerWriteACValueIndex([IntPtr]::Zero, [ref]$SchemeGuid, [ref]$sub, [ref]$settingGuid, $Value)
+        $result = [CpuThrottling.PowerApi]::PowerWriteACValueIndex([IntPtr]::Zero, [ref]$SchemeGuid, [ref]$sub, [ref]$settingGuid, $Value)
     }
     else {
-        $result = [CpuPowerControl.PowerApi]::PowerWriteDCValueIndex([IntPtr]::Zero, [ref]$SchemeGuid, [ref]$sub, [ref]$settingGuid, $Value)
+        $result = [CpuThrottling.PowerApi]::PowerWriteDCValueIndex([IntPtr]::Zero, [ref]$SchemeGuid, [ref]$sub, [ref]$settingGuid, $Value)
     }
 
     if ($result -ne 0) {
@@ -162,8 +162,162 @@ function Set-PowerSettingValue {
 
 function Apply-ActiveScheme {
     param([Guid]$SchemeGuid = (Get-ActiveSchemeGuid))
-    $result = [CpuPowerControl.PowerApi]::PowerSetActiveScheme([IntPtr]::Zero, [ref]$SchemeGuid)
+    $result = [CpuThrottling.PowerApi]::PowerSetActiveScheme([IntPtr]::Zero, [ref]$SchemeGuid)
     if ($result -ne 0) { throw "PowerSetActiveScheme failed with Win32 error $result." }
+}
+
+
+function Get-LiveCpuTelemetry {
+    $load = $null
+    $current = $null
+    $baseMax = $null
+    $temp = $null
+    $loadSource = 'Unavailable'
+    $clockSource = 'Unavailable'
+    $utility = $null
+    $percentMax = $null
+    $percentPerformance = $null
+    $perfFrequency = $null
+
+    function Get-CimNumericProperty {
+        param([object]$Object,[string]$Name)
+        try {
+            if ($null -eq $Object) { return $null }
+            $prop = $Object.CimInstanceProperties[$Name]
+            if ($prop -and $null -ne $prop.Value) { return [double]$prop.Value }
+        } catch { }
+        return $null
+    }
+
+    # Very low-overhead CPU busy-time sampler. Repeated CIM polling itself can
+    # noticeably influence the load reading on some systems, so live load is
+    # measured from GetSystemTimes deltas instead.
+    if (-not ('CpuThrottling.TelemetryNative' -as [type])) {
+        Add-Type -TypeDefinition @"
+using System;
+using System.Runtime.InteropServices;
+namespace CpuThrottling {
+    [StructLayout(LayoutKind.Sequential)]
+    public struct FILETIME_COUNTER {
+        public uint Low;
+        public uint High;
+    }
+    public static class TelemetryNative {
+        [DllImport("kernel32.dll", SetLastError=true)]
+        public static extern bool GetSystemTimes(
+            out FILETIME_COUNTER idleTime,
+            out FILETIME_COUNTER kernelTime,
+            out FILETIME_COUNTER userTime);
+    }
+}
+"@
+    }
+
+    function Convert-FileTimeCounterToUInt64 {
+        param($Counter)
+        return (([uint64]$Counter.High -shl 32) -bor [uint64]$Counter.Low)
+    }
+
+    try {
+        $idle = New-Object CpuThrottling.FILETIME_COUNTER
+        $kernel = New-Object CpuThrottling.FILETIME_COUNTER
+        $user = New-Object CpuThrottling.FILETIME_COUNTER
+        if ([CpuThrottling.TelemetryNative]::GetSystemTimes([ref]$idle,[ref]$kernel,[ref]$user)) {
+            [uint64]$idleNow = Convert-FileTimeCounterToUInt64 $idle
+            [uint64]$kernelNow = Convert-FileTimeCounterToUInt64 $kernel
+            [uint64]$userNow = Convert-FileTimeCounterToUInt64 $user
+            [uint64]$totalNow = $kernelNow + $userNow
+
+            if ($null -ne $script:TelemetryPrevTotal -and $totalNow -gt [uint64]$script:TelemetryPrevTotal) {
+                [double]$deltaTotal = [double]($totalNow - [uint64]$script:TelemetryPrevTotal)
+                [double]$deltaIdle = [double]($idleNow - [uint64]$script:TelemetryPrevIdle)
+                if ($deltaTotal -gt 0) {
+                    $busy = (($deltaTotal - $deltaIdle) / $deltaTotal) * 100.0
+                    $load = [int][math]::Round([math]::Max(0,[math]::Min(100,$busy)))
+                    $loadSource = 'Windows GetSystemTimes'
+                }
+            }
+
+            $script:TelemetryPrevIdle = $idleNow
+            $script:TelemetryPrevTotal = $totalNow
+        }
+    } catch { }
+
+    # Cache the processor nominal/base clock; this value does not change during
+    # the session and Win32_Processor is comparatively expensive to query.
+    if ($null -eq $script:TelemetryBaseClockMHz) {
+        try {
+            $cpus = @(Get-CimInstance Win32_Processor -ErrorAction Stop)
+            $maxes = @($cpus | ForEach-Object {
+                if ($null -ne $_.MaxClockSpeed) { [double]$_.MaxClockSpeed }
+            })
+            if ($maxes.Count) {
+                $script:TelemetryBaseClockMHz = [int][math]::Round(($maxes | Measure-Object -Maximum).Maximum)
+            }
+        } catch { }
+    }
+    $baseMax = $script:TelemetryBaseClockMHz
+
+    # Windows' Processor Information provider exposes % Processor Performance.
+    # Unlike Win32_Processor.CurrentClockSpeed and "% of Maximum Frequency",
+    # this counter can exceed 100% during Turbo and is therefore suitable for
+    # deriving the Task-Manager-like effective package clock from base speed.
+    try {
+        $perfRows = @(Get-CimInstance -ClassName Win32_PerfFormattedData_Counters_ProcessorInformation -ErrorAction Stop)
+        $perf = $perfRows | Where-Object { [string]$_.Name -eq '_Total' } | Select-Object -First 1
+        if (-not $perf) {
+            $perf = $perfRows | Where-Object { [string]$_.Name -like '*,_Total' } | Select-Object -First 1
+        }
+        if (-not $perf -and $perfRows.Count -eq 1) { $perf = $perfRows[0] }
+
+        if ($perf) {
+            $utility = Get-CimNumericProperty $perf 'PercentProcessorUtility'
+            $percentPerformance = Get-CimNumericProperty $perf 'PercentProcessorPerformance'
+            $percentMax = Get-CimNumericProperty $perf 'PercentofMaximumFrequency'
+            $perfFrequency = Get-CimNumericProperty $perf 'ProcessorFrequency'
+
+            if ($null -eq $load -and $null -ne $utility) {
+                # First UI sample has no GetSystemTimes delta yet. Use the
+                # Task-Manager family utility counter only for this warm-up.
+                $load = [int][math]::Round([math]::Max(0,[math]::Min(100,$utility)))
+                $loadSource = 'Windows Processor Utility (warm-up)'
+            }
+
+            if ($null -ne $percentPerformance -and $null -ne $baseMax -and $baseMax -gt 0 -and $percentPerformance -gt 0) {
+                $current = [int][math]::Round(([double]$baseMax * [double]$percentPerformance) / 100.0)
+                $clockSource = '% Processor Performance × base clock'
+            }
+            elseif ($null -ne $perfFrequency -and $perfFrequency -gt 0) {
+                $current = [int][math]::Round($perfFrequency)
+                $clockSource = 'ProcessorFrequency fallback'
+            }
+        }
+    } catch { }
+
+    # Last-resort fallback only.
+    if ($null -eq $current) {
+        try {
+            $cpu = Get-CimInstance Win32_Processor -ErrorAction Stop | Select-Object -First 1
+            if ($cpu -and $null -ne $cpu.CurrentClockSpeed) {
+                $current = [int][math]::Round([double]$cpu.CurrentClockSpeed)
+                $clockSource = 'Win32_Processor fallback'
+            }
+        } catch { }
+    }
+
+
+    return [pscustomobject]@{
+        LoadPercent = $load
+        CurrentClockMHz = $current
+        BaseClockMHz = $baseMax
+        Source = "Load: $loadSource; Clock: $clockSource"
+        LoadSource = $loadSource
+        ClockSource = $clockSource
+        ProcessorUtilityPercent = $utility
+        PercentProcessorPerformance = $percentPerformance
+        PercentOfMaximumFrequency = $percentMax
+        ProviderFrequencyMHz = $perfFrequency
+    }
 }
 
 function Get-SystemPowerState {
