@@ -59,7 +59,7 @@ if (-not $failed) {
 
             foreach ($commandName in $contracts[$relativePath]) {
                 if ($defined -notcontains $commandName) {
-                    throw "Required app function is not defined by $relativePath: $commandName"
+                    throw "Required app function is not defined by ${relativePath}: $commandName"
                 }
                 Write-Host "OK  source function $commandName ($relativePath)" -ForegroundColor Green
             }
