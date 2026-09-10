@@ -78,9 +78,7 @@ Restart persistence and profile import/export remain explicit checklist items un
 
 ## Current Store CI
 
-`Build Store Test MSIX` run #26 completed successfully on commit `c6a7dd797279a4ab4a91701a69b026ccb308527c` after the WACK helper and updated Store documentation were added. The workflow passed PowerShell 5.1 parser/runtime checks, non-elevated manifest validation, x64 EXE build, MSIX packaging, development signing, signature verification and artifact upload.
-
-Run #26 artifact digest: `sha256:3dc64cf72c0a06354d023861e1f725cfc59aaad8745f83167fbc45e44d6679ae`.
+A Store artifact containing the local WACK runner has completed the full CI pipeline successfully: PowerShell 5.1 parser/runtime checks, non-elevated manifest validation, x64 EXE build, MSIX packaging, development signing, signature verification and artifact upload.
 
 ## Windows App Certification Kit
 
@@ -130,7 +128,7 @@ If `appcert.exe` is missing, install the current Windows SDK / Windows App Certi
 - [x] Windows energy-plan interaction retested successfully in the fixed MSIX.
 - [x] Tested CPU power/profile changes work without application UAC.
 - [x] Local WACK runner added to the Store artifact.
-- [x] Latest Store CI artifact (run #26) builds and signs successfully.
+- [x] Store CI artifact with WACK helper builds and signs successfully.
 - [ ] Restart persistence and import/export explicitly reconfirmed in the packaged app.
 - [ ] Windows App Certification Kit passes on the packaged build.
 - [ ] Partner Center developer account ready.
