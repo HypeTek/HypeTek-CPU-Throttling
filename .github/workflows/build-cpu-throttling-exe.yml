@@ -4,7 +4,6 @@ on:
   push:
     branches:
       - main
-      - feature/cpu-throttling-exe-layout
   workflow_dispatch:
 
 jobs:
@@ -20,12 +19,10 @@ jobs:
           powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Test-Syntax.ps1
           if ($LASTEXITCODE -ne 0) { throw "PowerShell parser test failed" }
 
-      - name: Prepare HypeTek icon
+      - name: Verify bundled HypeTek icon
         shell: powershell
         run: |
-          New-Item -ItemType Directory -Force -Path resources | Out-Null
-          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/HypeTek/HypeTek-Bookmarker/main/resources/app.ico" -OutFile "resources\app.ico"
-          if (-not (Test-Path "resources\app.ico")) { throw "app.ico download failed" }
+          if (-not (Test-Path "resources\app.ico")) { throw "resources\app.ico missing" }
 
       - name: Build HypeTek CPU Throttling EXE
         shell: powershell
