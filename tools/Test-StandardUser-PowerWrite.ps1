@@ -16,9 +16,13 @@ if ($isAdmin) {
     exit 2
 }
 
-$powerCfg = Join-Path (Split-Path -Parent $PSScriptRoot) 'src\PowerCfg.ps1'
-if (-not (Test-Path -LiteralPath $powerCfg)) {
-    throw "PowerCfg.ps1 not found: $powerCfg"
+$candidates = @(
+    (Join-Path (Split-Path -Parent $PSScriptRoot) 'src\PowerCfg.ps1'),
+    (Join-Path $PSScriptRoot 'PowerCfg.ps1')
+)
+$powerCfg = $candidates | Where-Object { Test-Path -LiteralPath $_ } | Select-Object -First 1
+if (-not $powerCfg) {
+    throw "PowerCfg.ps1 not found. Checked: $($candidates -join ', ')"
 }
 
 . $powerCfg
