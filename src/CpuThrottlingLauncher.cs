@@ -28,6 +28,7 @@ namespace HypeTek.CpuThrottling.Launcher
             string srcDir = Path.Combine(appDir, "src");
             string powerCfgPath = Path.Combine(srcDir, "PowerCfg.ps1");
             string profileManagerPath = Path.Combine(srcDir, "ProfileManager.ps1");
+            string storeCompatPath = Path.Combine(srcDir, "StoreRuntimeCompat.ps1");
             string mainPath = Path.Combine(srcDir, "Main.ps1");
 
             string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
@@ -45,7 +46,7 @@ namespace HypeTek.CpuThrottling.Launcher
                 return 2;
             }
 
-            foreach (string required in new[] { powerCfgPath, profileManagerPath, mainPath })
+            foreach (string required in new[] { powerCfgPath, profileManagerPath, storeCompatPath, mainPath })
             {
                 if (!File.Exists(required))
                 {
@@ -86,6 +87,7 @@ namespace HypeTek.CpuThrottling.Launcher
                         ps.AddScript("Set-Location -LiteralPath '" + escapedAppDir + "'");
                         ps.AddScript(File.ReadAllText(powerCfgPath, Encoding.UTF8));
                         ps.AddScript(File.ReadAllText(profileManagerPath, Encoding.UTF8));
+                        ps.AddScript(File.ReadAllText(storeCompatPath, Encoding.UTF8));
                         ps.AddScript(File.ReadAllText(mainPath, Encoding.UTF8));
                         ps.Invoke();
 
