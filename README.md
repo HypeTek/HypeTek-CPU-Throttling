@@ -29,7 +29,7 @@ HypeTek-CPU-Throttling-v0.2.0/
 
 ## Highlights
 
-- Rebranded from **HypeTek CPU Power Control** to **HypeTek CPU Throttling**
+- Finalized the product name as **HypeTek CPU Throttling**
 - Native Windows **EXE** as the recommended launcher
 - UAC elevation handled by the EXE
 - No visible PowerShell console during normal EXE startup
@@ -91,17 +91,17 @@ Use **Einstellungen** to configure:
 
 Profiles can be created, captured from current Windows values, edited, duplicated, deleted, imported from JSON and exported to JSON. A profile whose stored values match the currently read Windows values is highlighted and shown as the active HypeTek profile.
 
-## Data compatibility
+## Data storage and compatibility
 
-To avoid losing existing profiles during the rebrand, v0.2.0 intentionally keeps the existing runtime paths:
+HypeTek CPU Throttling stores its user data below the HypeTek vendor folder:
 
 ```text
-%APPDATA%\CPUPowerControl\profiles.json
-%APPDATA%\CPUPowerControl\settings.json
-%LOCALAPPDATA%\CPUPowerControl\logs\startup.log
+%APPDATA%\HypeTek\CPU-Throttling\profiles.json
+%APPDATA%\HypeTek\CPU-Throttling\settings.json
+%LOCALAPPDATA%\HypeTek\CPU-Throttling\logs\startup.log
 ```
 
-No destructive migration is performed.
+On first start, v0.2.0 performs a non-destructive one-time import of profile, settings and appearance data from older pre-release locations when the new files do not yet exist. The new branded paths are used for all subsequent reads and writes.
 
 ## Requirements
 
