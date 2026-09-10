@@ -3,8 +3,8 @@ name: Build CPU Throttling EXE
 on:
   push:
     branches:
-      - main
       - feature/cpu-throttling-exe-layout
+      - main
   workflow_dispatch:
 
 jobs:
@@ -23,9 +23,7 @@ jobs:
       - name: Prepare HypeTek icon
         shell: powershell
         run: |
-          New-Item -ItemType Directory -Force -Path resources | Out-Null
-          Invoke-WebRequest -Uri "https://raw.githubusercontent.com/HypeTek/HypeTek-Bookmarker/main/resources/app.ico" -OutFile "resources\app.ico"
-          if (-not (Test-Path "resources\app.ico")) { throw "app.ico download failed" }
+          if (-not (Test-Path "resources\app.ico")) { throw "resources\app.ico missing" }
 
       - name: Build HypeTek CPU Throttling EXE
         shell: powershell
