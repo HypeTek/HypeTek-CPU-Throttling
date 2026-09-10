@@ -83,7 +83,7 @@ jobs:
           New-Item -ItemType Directory -Force -Path $stage, "$stage\app\src", "$stage\app\resources", "$stage\Assets" | Out-Null
 
           Copy-Item dist\HypeTek-CPU-Throttling.exe "$stage\HypeTek-CPU-Throttling.exe"
-          Copy-Item src\PowerCfg.ps1,src\ProfileManager.ps1,src\Main.ps1,src\MainWindow.xaml "$stage\app\src\"
+          Copy-Item src\PowerCfg.ps1,src\ProfileManager.ps1,src\StoreRuntimeCompat.ps1,src\Main.ps1,src\MainWindow.xaml "$stage\app\src\"
           Copy-Item resources\app-logo.jpg,resources\default-wallpaper.jpg "$stage\app\resources\"
           Copy-Item store\AppxManifest.xml "$stage\AppxManifest.xml"
 
@@ -159,6 +159,7 @@ jobs:
           Copy-Item store\Install-StoreTest.ps1 dist\Install-StoreTest.ps1
           Copy-Item tools\Test-StandardUser-PowerWrite.ps1 dist\Test-StandardUser-PowerWrite.ps1
           Copy-Item src\PowerCfg.ps1 dist\PowerCfg.ps1
+          Copy-Item src\StoreRuntimeCompat.ps1 dist\StoreRuntimeCompat.ps1
 
       - name: Upload Store test package
         uses: actions/upload-artifact@v4
@@ -170,5 +171,6 @@ jobs:
             dist/Install-StoreTest.ps1
             dist/Test-StandardUser-PowerWrite.ps1
             dist/PowerCfg.ps1
+            dist/StoreRuntimeCompat.ps1
             dist/MS_STORE_TEST_README.md
           if-no-files-found: error
