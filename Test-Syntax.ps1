@@ -8,7 +8,8 @@ $files = @(
     (Join-Path $root 'src\PowerCfg.ps1'),
     (Join-Path $root 'src\ProfileManager.ps1'),
     (Join-Path $root 'src\StoreRuntimeCompat.ps1'),
-    (Join-Path $root 'src\Main.ps1')
+    (Join-Path $root 'src\Main.ps1'),
+    (Join-Path $root 'tools\Run-WackLocal.ps1')
 )
 
 $failed = $false
