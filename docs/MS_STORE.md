@@ -35,6 +35,24 @@ These values are only for sideload testing. Before a real Store submission, rese
 
 The temporary development certificate is self-signed. Windows App Installer requires it to be trusted in the **Local Computer / Trusted People** certificate store before the test MSIX can be installed. That one-time test setup requires administrator rights; the installed Store-test application itself must still run non-elevated. A real Microsoft Store package is re-signed by Microsoft and does not need this development-certificate step.
 
+## Real-hardware permission result
+
+On 2026-09-11 the standard-user write probe was run from a **non-elevated** Windows PowerShell 5.1 session (`Elevated token: False`) against the active Balanced scheme (`381b4222-f694-41f0-9685-ff5bb260df2e`).
+
+All supported writes succeeded without elevation:
+
+- MinState AC/DC: `WRITE OK`
+- MaxState AC/DC: `WRITE OK`
+- MaxFrequency AC/DC: `WRITE OK`
+- BoostMode AC/DC: `WRITE OK`
+- CoolingPolicy AC/DC: `WRITE OK`
+- Epp AC/DC: `WRITE OK`
+- Apply active scheme: `OK`
+
+Result: `PASS: Supported power-setting writes succeeded without elevation.`
+
+This proves that the current documented power-policy write path does not inherently require administrator rights on the tested hardware. The remaining gate is to verify the packaged MSIX application itself end-to-end without UAC.
+
 ## Validation sequence
 
 1. Run `tools\Test-StandardUser-PowerWrite.ps1` from a **non-elevated** Windows PowerShell 5.1 window.
@@ -57,7 +75,7 @@ If step 1 fails with access denied on supported settings, stop: the no-elevation
 - [x] Sideload signing for test artifacts.
 - [x] Standard-user power-write permission probe.
 - [x] Development-only test installer for certificate trust + MSIX install.
-- [ ] Standard-user permission probe passes on real target hardware.
+- [x] Standard-user permission probe passes on real target hardware.
 - [ ] MSIX installs and runs on Windows 10/11 test machines.
 - [ ] All power/profile features work without UAC.
 - [ ] Partner Center developer account ready.
