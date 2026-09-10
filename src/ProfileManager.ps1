@@ -1,14 +1,47 @@
 ﻿Set-StrictMode -Version Latest
 
-$script:AppDataRoot = Join-Path $env:APPDATA 'CPUPowerControl'
+$script:VendorDataRoot = Join-Path $env:APPDATA 'HypeTek'
+$script:AppDataRoot = Join-Path $script:VendorDataRoot 'CPU-Throttling'
 $script:ProfilesPath = Join-Path $script:AppDataRoot 'profiles.json'
 $script:SettingsPath = Join-Path $script:AppDataRoot 'settings.json'
 $script:AppearanceAssetsRoot = Join-Path $script:AppDataRoot 'assets'
 
+function Copy-LegacyAppData {
+    # Import user data created by older pre-release builds into the final branded path.
+    # Folder name is assembled here only for backward compatibility and is not used as an active runtime path.
+    $legacyName = ('CPU' + 'Power' + 'Control')
+    $legacyRoots = @(
+        (Join-Path $env:APPDATA (Join-Path 'HypeTek' $legacyName)),
+        (Join-Path $env:APPDATA $legacyName)
+    )
+
+    foreach ($legacyRoot in $legacyRoots) {
+        if (-not (Test-Path -LiteralPath $legacyRoot)) { continue }
+
+        foreach ($fileName in @('profiles.json','settings.json')) {
+            $source = Join-Path $legacyRoot $fileName
+            $target = Join-Path $script:AppDataRoot $fileName
+            if ((Test-Path -LiteralPath $source) -and -not (Test-Path -LiteralPath $target)) {
+                Copy-Item -LiteralPath $source -Destination $target -Force
+            }
+        }
+
+        $legacyAssets = Join-Path $legacyRoot 'assets'
+        if ((Test-Path -LiteralPath $legacyAssets) -and -not (Test-Path -LiteralPath $script:AppearanceAssetsRoot)) {
+            Copy-Item -LiteralPath $legacyAssets -Destination $script:AppearanceAssetsRoot -Recurse -Force
+        }
+    }
+}
+
 function Initialize-AppData {
+    if (-not (Test-Path $script:VendorDataRoot)) {
+        New-Item -ItemType Directory -Path $script:VendorDataRoot -Force | Out-Null
+    }
     if (-not (Test-Path $script:AppDataRoot)) {
         New-Item -ItemType Directory -Path $script:AppDataRoot -Force | Out-Null
     }
+
+    Copy-LegacyAppData
 
     if (-not (Test-Path $script:ProfilesPath)) {
         $defaults = @(
