@@ -15,15 +15,18 @@ Official references:
 - https://learn.microsoft.com/windows/msix/desktop/desktop-to-uwp-manual-conversion
 - https://learn.microsoft.com/windows/apps/package-and-deploy/choose-distribution-path
 - https://learn.microsoft.com/windows/msix/package/create-certificate-package-signing
+- https://learn.microsoft.com/windows/uwp/debug-test-perf/windows-app-certification-kit
 
 ## What this branch adds
 
 - `src/app.store.manifest` — native EXE manifest with `asInvoker`.
 - `store/AppxManifest.xml` — development MSIX manifest for a packaged Win32 desktop app.
+- `src/StoreRuntimeCompat.ps1` — Store-specific runtime compatibility helpers loaded before `Main.ps1`.
 - `tools/Test-StandardUser-PowerWrite.ps1` — safe permission probe that writes the already configured values back to the active power scheme while running non-elevated.
+- `tools/Run-WackLocal.ps1` — local Windows App Certification Kit runner for the installed Store-test package; creates a timestamped certification report under the user's Documents folder.
 - `store/Install-StoreTest.ps1` — development-only helper that replaces a previous Store-test package, refreshes the temporary CI certificate trust, and installs the current MSIX.
-- `.github/workflows/build-store-msix.yml` — builds a separate x64 Store-test EXE, stages the existing app files, creates an MSIX, signs it with an ephemeral development certificate, and uploads the MSIX + public certificate + test installer as a CI artifact.
-- `Test-Syntax.ps1` additionally validates the runtime function contract used by the UI so missing helper functions are caught by CI instead of only on real hardware.
+- `.github/workflows/build-store-msix.yml` — builds a separate x64 Store-test EXE, stages the existing app files, creates an MSIX, signs it with an ephemeral development certificate, and uploads the MSIX + public certificate + test helpers as a CI artifact.
+- `Test-Syntax.ps1` additionally validates the Store runtime function contract and WACK helper syntax so missing runtime helpers and helper-script parser errors are caught by CI.
 
 ## Important: development identity
 
@@ -34,7 +37,7 @@ Official references:
 
 These values are only for sideload testing. Before a real Store submission, reserve the app name in Partner Center and replace the identity fields with the exact values assigned by Microsoft.
 
-The temporary development certificate is self-signed. Windows App Installer requires it to be trusted in the **Local Computer / Trusted People** certificate store before the test MSIX can be installed. That one-time test setup requires administrator rights; the installed Store-test application itself must still run non-elevated. A real Microsoft Store package is re-signed by Microsoft and does not need this development-certificate step.
+The temporary development certificate is self-signed. Windows App Installer requires it to be trusted in the **Local Computer / Trusted People** certificate store before the test MSIX can be installed. That one-time test setup requires administrator rights; the installed Store-test application itself runs non-elevated. A real Microsoft Store package is re-signed by Microsoft and does not need this development-certificate step.
 
 ## Real-hardware permission result
 
@@ -52,26 +55,57 @@ All supported writes succeeded without elevation:
 
 Result: `PASS: Supported power-setting writes succeeded without elevation.`
 
-This proves that the current documented power-policy write path does not inherently require administrator rights on the tested hardware.
+This demonstrates that the tested Windows power-policy write path does not require administrator rights on the tested hardware.
 
-## First MSIX runtime result
+## Packaged MSIX real-hardware result
 
-The development MSIX installed successfully on a Windows 11 x64 test machine and the packaged application launched far enough to load the full GUI, telemetry, current Windows power scheme, compatibility flags, profiles and user data.
+The development MSIX from build run #22 installed successfully on Windows 11 x64 and launched normally from the Start menu without an application UAC prompt.
 
-Applying a profile then exposed a code-level runtime defect: `Main.ps1` called `Get-ActivePowerScheme`, but no function with that name was loaded. This was **not** an elevation or MSIX sandbox failure; the lower-level non-elevated write probe had already proved the underlying power APIs work.
+The initial packaged test exposed a missing runtime compatibility helper (`Get-ActivePowerScheme`). The Store branch now loads `StoreRuntimeCompat.ps1` before `Main.ps1` and CI validates the Store runtime contract from source. The corrected package was then retested successfully.
 
-The Store branch now provides the missing active-scheme object helper and CI checks the required runtime function contract. The next artifact must be retested for profile apply, editor apply, power-scheme switching and persistence.
+Confirmed working in the packaged application:
+
+- normal Start-menu launch without application elevation
+- full GUI and live telemetry
+- existing profile loading
+- profile apply
+- editor apply
+- Windows energy-plan interaction
+- supported CPU power settings without UAC
+- Store runtime helper loading
+
+Restart persistence and profile import/export remain explicit checklist items until separately reconfirmed for the packaged build.
+
+## Windows App Certification Kit
+
+Microsoft recommends running the Windows App Certification Kit before Store submission. The kit must run in the context of an active user session; therefore the final certification test is intentionally a local real-machine gate instead of being treated as a hosted CI substitute.
+
+The Store artifact includes `Run-WackLocal.ps1`. With the current MSIX installed, open **Windows PowerShell 5.1 as Administrator** and run:
+
+```powershell
+powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Run-WackLocal.ps1
+```
+
+The helper:
+
+1. locates `appcert.exe`,
+2. finds the installed `HypeTek.CPUThrottling.Dev` package,
+3. resets WACK state,
+4. runs the certification workflow against the installed package, and
+5. writes a timestamped XML report under `Documents\HypeTek\CPU-Throttling\WACK`.
+
+If `appcert.exe` is missing, install the current Windows SDK / Windows App Certification Kit first.
 
 ## Validation sequence
 
-1. Run `tools\Test-StandardUser-PowerWrite.ps1` from a **non-elevated** Windows PowerShell 5.1 window.
-2. All supported AC/DC settings should report `WRITE OK`, and `Apply active scheme` should report `OK`.
-3. Download the latest `HypeTek-CPU-Throttling-Store-Test` workflow artifact.
-4. Extract the artifact and run `Install-StoreTest.ps1` as administrator. The helper automatically removes an older Store-test package and stale temporary CI certificate before installing this build. User profiles/settings are not removed.
-5. Launch HypeTek CPU Throttling normally from the Start menu. It must not show a UAC prompt.
-6. Verify GUI launch, telemetry, profile load/save, AC/DC changes, editor apply, profile switching, Windows energy-plan switching, import/export and restart persistence without elevation.
-7. After testing, uninstall the test package and remove the development certificate from Local Computer -> Trusted People.
-8. Run Windows App Certification Kit before submission.
+1. Install the latest Store-test artifact with `Install-StoreTest.ps1` as administrator.
+2. Launch HypeTek CPU Throttling normally from Start and verify there is no application UAC prompt.
+3. Verify GUI, telemetry, profile switching, editor apply and Windows energy-plan switching.
+4. Reconfirm restart persistence and profile import/export.
+5. Close the application.
+6. Open Windows PowerShell 5.1 as Administrator and run `Run-WackLocal.ps1` from the extracted artifact folder.
+7. Review the generated WACK XML/HTML report and fix any failing tests before Store submission.
+8. Reserve the app name in Partner Center, replace the development identity with Microsoft's assigned identity/publisher values, finalize listing assets, rebuild and rerun WACK on the final candidate.
 
 ## Store-readiness checklist
 
@@ -84,14 +118,16 @@ The Store branch now provides the missing active-scheme object helper and CI che
 - [x] Development-only test installer for certificate trust + MSIX install.
 - [x] Standard-user permission probe passes on real target hardware.
 - [x] MSIX installs and launches on a Windows 11 x64 test machine.
-- [x] Missing active-power-scheme runtime helper found and fixed on Store branch.
-- [x] CI runtime-contract test added for required power helpers.
-- [ ] Profile apply/editor apply retested successfully in the fixed MSIX.
-- [ ] Windows energy-plan switching retested successfully in the fixed MSIX.
-- [ ] All power/profile features work without UAC.
-- [ ] Restart persistence and import/export verified in the packaged app.
+- [x] Missing Store runtime helpers fixed and loaded before `Main.ps1`.
+- [x] Source-aware CI runtime-contract test added for required power helpers.
+- [x] Profile apply/editor apply retested successfully in the fixed MSIX.
+- [x] Windows energy-plan interaction retested successfully in the fixed MSIX.
+- [x] Tested CPU power/profile changes work without application UAC.
+- [x] Local WACK runner added to the Store artifact.
+- [ ] Restart persistence and import/export explicitly reconfirmed in the packaged app.
+- [ ] Windows App Certification Kit passes on the packaged build.
 - [ ] Partner Center developer account ready.
 - [ ] App name reserved and official Store identity copied into manifest.
 - [ ] Final Store icons/screenshots/listing text prepared.
-- [ ] Windows App Certification Kit passes.
+- [ ] Final candidate rebuilt with Store-assigned identity and revalidated.
 - [ ] Store submission passes certification.
