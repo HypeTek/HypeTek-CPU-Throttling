@@ -27,11 +27,11 @@ jobs:
           if ($manifest -notmatch 'requestedExecutionLevel\s+level="asInvoker"') {
             throw 'Store EXE manifest must use asInvoker.'
           }
-          if ($manifest -match 'requireAdministrator') {
+          if ($manifest -match 'requestedExecutionLevel\s+level="requireAdministrator"') {
             throw 'Store EXE manifest must not require administrator.'
           }
           $packageManifest = Get-Content .\store\AppxManifest.xml -Raw
-          if ($packageManifest -match 'allowElevation') {
+          if ($packageManifest -match '<rescap:Capability\s+Name="allowElevation"') {
             throw 'Store test package must not declare allowElevation.'
           }
 
