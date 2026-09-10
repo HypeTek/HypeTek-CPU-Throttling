@@ -31,7 +31,7 @@ namespace HypeTek.CpuThrottling.Launcher
             string mainPath = Path.Combine(srcDir, "Main.ps1");
 
             string localAppData = Environment.GetFolderPath(Environment.SpecialFolder.LocalApplicationData);
-            string logDir = Path.Combine(localAppData, "CPUPowerControl", "logs");
+            string logDir = Path.Combine(localAppData, "HypeTek", "CPU-Throttling", "logs");
             string logPath = Path.Combine(logDir, "startup.log");
 
             if (!Directory.Exists(appDir))
@@ -65,6 +65,7 @@ namespace HypeTek.CpuThrottling.Launcher
                     "[" + DateTime.Now.ToString("yyyy-MM-dd HH:mm:ss.fff") + "] Native EXE start; appDir=" + appDir + "\r\n",
                     Encoding.UTF8);
 
+                // All resource and application paths stay relative to appDir.
                 Environment.SetEnvironmentVariable("HYPETEK_CPU_THROTTLING_BASEDIR", appDir);
 
                 InitialSessionState state = InitialSessionState.CreateDefault();
@@ -80,6 +81,7 @@ namespace HypeTek.CpuThrottling.Launcher
                     using (PowerShell ps = PowerShell.Create())
                     {
                         ps.Runspace = runspace;
+
                         string escapedAppDir = appDir.Replace("'", "''");
                         ps.AddScript("Set-Location -LiteralPath '" + escapedAppDir + "'");
                         ps.AddScript(File.ReadAllText(powerCfgPath, Encoding.UTF8));
@@ -94,6 +96,7 @@ namespace HypeTek.CpuThrottling.Launcher
                             foreach (ErrorRecord error in ps.Streams.Error)
                                 sb.AppendLine(error.ToString());
                             File.AppendAllText(logPath, sb.ToString(), Encoding.UTF8);
+
                             MessageBox.Show(
                                 "HypeTek CPU Throttling hat einen Fehler gemeldet.\r\n\r\nDetails:\r\n" + logPath,
                                 "HypeTek CPU Throttling",
