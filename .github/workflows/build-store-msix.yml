@@ -129,17 +129,34 @@ jobs:
       - name: Sign MSIX with ephemeral development certificate
         shell: powershell
         run: |
-          $cert = New-SelfSignedCertificate -Type CodeSigningCert -Subject 'CN=HypeTek Development' -FriendlyName 'HypeTek CPU Throttling Store Test' -CertStoreLocation 'Cert:\CurrentUser\My'
+          $passwordText = [guid]::NewGuid().ToString('N')
+          $password = ConvertTo-SecureString -String $passwordText -Force -AsPlainText
+          $cert = New-SelfSignedCertificate `
+            -Type Custom `
+            -KeyUsage DigitalSignature `
+            -Subject 'CN=HypeTek Development' `
+            -FriendlyName 'HypeTek CPU Throttling Store Test' `
+            -CertStoreLocation 'Cert:\CurrentUser\My' `
+            -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3','2.5.29.19={text}')
+
           Export-Certificate -Cert $cert -FilePath dist\HypeTek-CPU-Throttling-Store-Test.cer | Out-Null
+          Export-PfxCertificate -Cert $cert -FilePath dist\HypeTek-CPU-Throttling-Store-Test.pfx -Password $password | Out-Null
 
           $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" -ErrorAction SilentlyContinue | Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
           if (-not $signtool) { throw 'signtool.exe not found' }
-          & $signtool sign /fd SHA256 /sha1 $cert.Thumbprint /v dist\HypeTek-CPU-Throttling-v0.2.0-Store-Test.msix
+
+          & $signtool sign /fd SHA256 /f dist\HypeTek-CPU-Throttling-Store-Test.pfx /p $passwordText /v dist\HypeTek-CPU-Throttling-v0.2.0-Store-Test.msix
           if ($LASTEXITCODE -ne 0) { throw "SignTool failed: $LASTEXITCODE" }
+
+          # Trust only on the disposable CI runner so signature verification can
+          # validate the complete chain. The PFX is deleted before artifact upload.
+          Import-Certificate -FilePath dist\HypeTek-CPU-Throttling-Store-Test.cer -CertStoreLocation 'Cert:\LocalMachine\TrustedPeople' | Out-Null
           & $signtool verify /pa /v dist\HypeTek-CPU-Throttling-v0.2.0-Store-Test.msix
           if ($LASTEXITCODE -ne 0) { throw "Signature verification failed: $LASTEXITCODE" }
 
+          Remove-Item dist\HypeTek-CPU-Throttling-Store-Test.pfx -Force
           Copy-Item docs\MS_STORE.md dist\MS_STORE_TEST_README.md
+          Copy-Item store\Install-StoreTest.ps1 dist\Install-StoreTest.ps1
 
       - name: Upload Store test package
         uses: actions/upload-artifact@v4
@@ -148,5 +165,6 @@ jobs:
           path: |
             dist/HypeTek-CPU-Throttling-v0.2.0-Store-Test.msix
             dist/HypeTek-CPU-Throttling-Store-Test.cer
+            dist/Install-StoreTest.ps1
             dist/MS_STORE_TEST_README.md
           if-no-files-found: error
