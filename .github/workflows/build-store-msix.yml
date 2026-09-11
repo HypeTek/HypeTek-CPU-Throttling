@@ -20,7 +20,7 @@ jobs:
           powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Test-Syntax.ps1
           if ($LASTEXITCODE -ne 0) { throw "PowerShell parser test failed" }
 
-      - name: Validate Store manifest is non-elevated
+      - name: Validate Store manifest is non-elevated and DPI-aware
         shell: powershell
         run: |
           $manifest = Get-Content .\src\app.store.manifest -Raw
@@ -29,6 +29,12 @@ jobs:
           }
           if ($manifest -match 'requestedExecutionLevel\s+level="requireAdministrator"') {
             throw 'Store EXE manifest must not require administrator.'
+          }
+          if ($manifest -notmatch '<dpiAware[^>]*>\s*(true|true/pm)\s*</dpiAware>') {
+            throw 'Store EXE manifest must declare legacy DPI awareness.'
+          }
+          if ($manifest -notmatch '<dpiAwareness[^>]*>\s*(PerMonitorV2|PerMonitor|System)') {
+            throw 'Store EXE manifest must declare modern DPI awareness.'
           }
           $packageManifest = Get-Content .\store\AppxManifest.xml -Raw
           if ($packageManifest -match '<rescap:Capability\s+Name="allowElevation"') {
