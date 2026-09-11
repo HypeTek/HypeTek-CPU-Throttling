@@ -98,7 +98,7 @@ The Store launcher currently has both Microsoft-documented DPI mechanisms:
 
 CI now extracts the compiled EXE's actual resource manifest with `mt.exe` and fails the build unless the **embedded** manifest still contains `asInvoker` and `PerMonitorV2`. This removes the possibility that the source manifest exists but was not embedded by the compiler.
 
-Because the local WACK DPI analyzer continues to warn despite detecting the DPI API itself, the remaining task is to verify the effective DPI context of the real running application window. `tools/Test-DpiAwareness.ps1` performs that check. If the actual window reports `PerMonitorV2`, the persistent local WACK result should be treated as an analyzer discrepancy and documented for the final Store submission/certification notes rather than changing working DPI behavior blindly.
+Because the local WACK DPI analyzer continues to warn despite detecting the DPI API itself, the remaining task is to verify the effective DPI context of the real running application window. `tools/Test-DpiAwareness.ps1` performs that check. If the actual window reports `PerMonitorV2`, retain the current DPI configuration and document the local WACK warning for the final Store certification notes instead of repeatedly changing working UI behavior. The Store's own certification remains the authoritative acceptance gate.
 
 ## DPI validation sequence
 
@@ -106,8 +106,8 @@ Because the local WACK DPI analyzer continues to warn despite detecting the DPI 
 2. Launch HypeTek CPU Throttling normally from Start and leave the main window open.
 3. From a normal PowerShell session run `Test-DpiAwareness.ps1` from the same artifact.
 4. Target result: `PASS: The actual application window is running as PerMonitorV2 DPI-aware.`
-5. If PASS, retain the manifest + runtime DPI configuration and document the local WACK warning as an analyzer discrepancy.
-6. Continue with Partner Center identity, listing and final certification rather than repeatedly changing a confirmed DPI-aware process.
+5. If PASS, retain the manifest + runtime DPI configuration and document the persistent local WACK warning.
+6. Continue with Partner Center identity, listing and final Store certification rather than repeatedly changing a confirmed DPI-aware process.
 
 ## Store-readiness checklist
 
