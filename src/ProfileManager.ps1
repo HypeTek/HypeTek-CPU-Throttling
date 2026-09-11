@@ -1,4 +1,4 @@
-﻿Set-StrictMode -Version Latest
+Set-StrictMode -Version Latest
 
 $script:VendorDataRoot = Join-Path $env:APPDATA 'HypeTek'
 $script:AppDataRoot = Join-Path $script:VendorDataRoot 'CPU-Throttling'
@@ -130,4 +130,22 @@ function Get-AppSettings {
 function Save-AppSettings {
     param([Parameter(Mandatory)]$Settings)
     $Settings | ConvertTo-Json -Depth 4 | Set-Content -Path $script:SettingsPath -Encoding UTF8
+}
+
+# Runtime compatibility helper for callers that need the active scheme as an object.
+# PowerCfg.ps1 already exposes the primitive functions; this bridge keeps the current
+# Main.ps1 API stable while the Store workstream is validated.
+function Get-ActivePowerScheme {
+    $activeGuid = Get-ActiveSchemeGuid
+    $active = @(Get-PowerSchemes | Where-Object { $_.Guid -eq $activeGuid } | Select-Object -First 1)
+    if ($active.Count -gt 0) { return $active[0] }
+
+    $name = Get-ActiveSchemeName -SchemeGuid $activeGuid
+    return [pscustomobject]@{
+        Name = $name
+        Guid = $activeGuid
+        GuidText = $activeGuid.ToString()
+        IsActive = $true
+        DisplayName = "$name  [aktiv]"
+    }
 }

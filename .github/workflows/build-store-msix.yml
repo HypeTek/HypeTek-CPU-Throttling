@@ -1,0 +1,203 @@
+name: Build Store Test MSIX
+
+on:
+  push:
+    branches:
+      - feature/ms-store-msix
+  workflow_dispatch:
+
+jobs:
+  build-store-test:
+    runs-on: windows-2022
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: PowerShell 5.1 syntax test
+        shell: powershell
+        run: |
+          powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Test-Syntax.ps1
+          if ($LASTEXITCODE -ne 0) { throw "PowerShell parser test failed" }
+
+      - name: Validate Store manifest is non-elevated and DPI-aware
+        shell: powershell
+        run: |
+          $manifest = Get-Content .\src\app.store.manifest -Raw
+          if ($manifest -notmatch 'requestedExecutionLevel\s+level="asInvoker"') {
+            throw 'Store EXE manifest must use asInvoker.'
+          }
+          if ($manifest -match 'requestedExecutionLevel\s+level="requireAdministrator"') {
+            throw 'Store EXE manifest must not require administrator.'
+          }
+          if ($manifest -notmatch '<dpiAware[^>]*>\s*(true|true/pm)\s*</dpiAware>') {
+            throw 'Store EXE manifest must declare legacy DPI awareness.'
+          }
+          if ($manifest -notmatch '<dpiAwareness[^>]*>\s*(PerMonitorV2|PerMonitor|System)') {
+            throw 'Store EXE manifest must declare modern DPI awareness.'
+          }
+          $packageManifest = Get-Content .\store\AppxManifest.xml -Raw
+          if ($packageManifest -match '<rescap:Capability\s+Name="allowElevation"') {
+            throw 'Store test package must not declare allowElevation.'
+          }
+
+      - name: Prepare compiler-compatible HypeTek icon
+        shell: powershell
+        run: |
+          New-Item -ItemType Directory -Force -Path dist | Out-Null
+          Add-Type -AssemblyName System.Drawing
+          $src = [System.Drawing.Image]::FromFile((Resolve-Path 'resources\app-logo.jpg'))
+          $bmp = New-Object System.Drawing.Bitmap 256,256
+          $g = [System.Drawing.Graphics]::FromImage($bmp)
+          $g.Clear([System.Drawing.Color]::Black)
+          $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+          $g.DrawImage($src,0,0,256,256)
+          $hIcon = $bmp.GetHicon()
+          $icon = [System.Drawing.Icon]::FromHandle($hIcon)
+          $fs = [System.IO.File]::Create((Join-Path (Resolve-Path dist) 'app-build.ico'))
+          try { $icon.Save($fs) } finally { $fs.Dispose(); $icon.Dispose(); $g.Dispose(); $bmp.Dispose(); $src.Dispose() }
+
+      - name: Build non-elevated x64 EXE
+        shell: powershell
+        run: |
+          $csc = "$env:WINDIR\Microsoft.NET\Framework64\v4.0.30319\csc.exe"
+          if (-not (Test-Path $csc)) { throw "csc.exe not found: $csc" }
+
+          $automation = Get-ChildItem "$env:WINDIR\Microsoft.NET\assembly\GAC_MSIL\System.Management.Automation" -Recurse -Filter System.Management.Automation.dll -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+          if (-not $automation) {
+            $automation = Get-ChildItem "$env:WINDIR\assembly\GAC_MSIL\System.Management.Automation" -Recurse -Filter System.Management.Automation.dll -ErrorAction SilentlyContinue | Select-Object -First 1 -ExpandProperty FullName
+          }
+          if (-not $automation) { throw 'Windows PowerShell System.Management.Automation.dll not found in the GAC' }
+
+          & $csc /nologo /target:winexe /platform:x64 /optimize+ `
+            /win32icon:dist\app-build.ico `
+            /win32manifest:src\app.store.manifest `
+            /out:dist\HypeTek-CPU-Throttling.exe `
+            /reference:System.dll `
+            /reference:System.Core.dll `
+            /reference:System.Windows.Forms.dll `
+            /reference:"$automation" `
+            src\CpuThrottlingLauncher.cs
+
+          if ($LASTEXITCODE -ne 0) { throw "C# compiler failed with exit code $LASTEXITCODE" }
+
+      - name: Verify embedded EXE manifest
+        shell: powershell
+        run: |
+          $mt = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\mt.exe" -ErrorAction SilentlyContinue | Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
+          if (-not $mt) { throw 'mt.exe not found' }
+
+          & $mt -nologo '-inputresource:dist\HypeTek-CPU-Throttling.exe;#1' '-out:dist\HypeTek-CPU-Throttling.embedded.manifest'
+          if ($LASTEXITCODE -ne 0) { throw "mt.exe failed to extract embedded manifest: $LASTEXITCODE" }
+
+          $embedded = Get-Content .\dist\HypeTek-CPU-Throttling.embedded.manifest -Raw
+          if ($embedded -notmatch 'requestedExecutionLevel\s+level="asInvoker"') {
+            throw 'Built EXE embedded manifest lost asInvoker.'
+          }
+          if ($embedded -notmatch '<dpiAwareness[^>]*>\s*PerMonitorV2') {
+            throw 'Built EXE embedded manifest does not contain PerMonitorV2.'
+          }
+          Write-Host 'Embedded EXE manifest contains asInvoker and PerMonitorV2.' -ForegroundColor Green
+
+      - name: Stage MSIX payload and assets
+        shell: powershell
+        run: |
+          Add-Type -AssemblyName System.Drawing
+          $stage = Join-Path $PWD 'dist\msix-stage'
+          New-Item -ItemType Directory -Force -Path $stage, "$stage\app\src", "$stage\app\resources", "$stage\Assets" | Out-Null
+
+          Copy-Item dist\HypeTek-CPU-Throttling.exe "$stage\HypeTek-CPU-Throttling.exe"
+          Copy-Item src\PowerCfg.ps1,src\ProfileManager.ps1,src\StoreRuntimeCompat.ps1,src\Main.ps1,src\MainWindow.xaml "$stage\app\src\"
+          Copy-Item resources\app-logo.jpg,resources\default-wallpaper.jpg "$stage\app\resources\"
+          Copy-Item store\AppxManifest.xml "$stage\AppxManifest.xml"
+
+          function New-SquarePng([string]$Path,[int]$Size) {
+            $src = [System.Drawing.Image]::FromFile((Resolve-Path 'resources\app-logo.jpg'))
+            $bmp = New-Object System.Drawing.Bitmap $Size,$Size
+            $g = [System.Drawing.Graphics]::FromImage($bmp)
+            try {
+              $g.Clear([System.Drawing.Color]::Black)
+              $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+              $g.DrawImage($src,0,0,$Size,$Size)
+              $bmp.Save($Path,[System.Drawing.Imaging.ImageFormat]::Png)
+            } finally { $g.Dispose(); $bmp.Dispose(); $src.Dispose() }
+          }
+
+          function New-WidePng([string]$Path) {
+            $src = [System.Drawing.Image]::FromFile((Resolve-Path 'resources\app-logo.jpg'))
+            $bmp = New-Object System.Drawing.Bitmap 310,150
+            $g = [System.Drawing.Graphics]::FromImage($bmp)
+            try {
+              $g.Clear([System.Drawing.Color]::Black)
+              $g.InterpolationMode = [System.Drawing.Drawing2D.InterpolationMode]::HighQualityBicubic
+              $size = [Math]::Min(150,$src.Width)
+              $x = [int]((310-$size)/2)
+              $g.DrawImage($src,$x,0,$size,150)
+              $bmp.Save($Path,[System.Drawing.Imaging.ImageFormat]::Png)
+            } finally { $g.Dispose(); $bmp.Dispose(); $src.Dispose() }
+          }
+
+          New-SquarePng "$stage\Assets\StoreLogo.png" 50
+          New-SquarePng "$stage\Assets\Square44x44Logo.png" 44
+          New-SquarePng "$stage\Assets\Square150x150Logo.png" 150
+          New-WidePng "$stage\Assets\Wide310x150Logo.png"
+
+      - name: Pack MSIX
+        shell: powershell
+        run: |
+          $makeappx = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\makeappx.exe" -ErrorAction SilentlyContinue | Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
+          if (-not $makeappx) { throw 'makeappx.exe not found' }
+          & $makeappx pack /d dist\msix-stage /p dist\HypeTek-CPU-Throttling-v0.2.0-Store-Test.msix /o
+          if ($LASTEXITCODE -ne 0) { throw "MakeAppx failed: $LASTEXITCODE" }
+
+      - name: Sign MSIX with ephemeral development certificate
+        shell: powershell
+        run: |
+          $passwordText = [guid]::NewGuid().ToString('N')
+          $password = ConvertTo-SecureString -String $passwordText -Force -AsPlainText
+          $cert = New-SelfSignedCertificate `
+            -Type Custom `
+            -KeyUsage DigitalSignature `
+            -Subject 'CN=HypeTek Development' `
+            -FriendlyName 'HypeTek CPU Throttling Store Test' `
+            -CertStoreLocation 'Cert:\CurrentUser\My' `
+            -TextExtension @('2.5.29.37={text}1.3.6.1.5.5.7.3.3','2.5.29.19={text}')
+
+          Export-Certificate -Cert $cert -FilePath dist\HypeTek-CPU-Throttling-Store-Test.cer | Out-Null
+          Export-PfxCertificate -Cert $cert -FilePath dist\HypeTek-CPU-Throttling-Store-Test.pfx -Password $password | Out-Null
+
+          $signtool = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\signtool.exe" -ErrorAction SilentlyContinue | Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
+          if (-not $signtool) { throw 'signtool.exe not found' }
+
+          & $signtool sign /fd SHA256 /f dist\HypeTek-CPU-Throttling-Store-Test.pfx /p $passwordText /v dist\HypeTek-CPU-Throttling-v0.2.0-Store-Test.msix
+          if ($LASTEXITCODE -ne 0) { throw "SignTool failed: $LASTEXITCODE" }
+
+          Import-Certificate -FilePath dist\HypeTek-CPU-Throttling-Store-Test.cer -CertStoreLocation 'Cert:\LocalMachine\TrustedPeople' | Out-Null
+          & $signtool verify /pa /v dist\HypeTek-CPU-Throttling-v0.2.0-Store-Test.msix
+          if ($LASTEXITCODE -ne 0) { throw "Signature verification failed: $LASTEXITCODE" }
+
+          Remove-Item dist\HypeTek-CPU-Throttling-Store-Test.pfx -Force
+          Copy-Item docs\MS_STORE.md dist\MS_STORE_TEST_README.md
+          Copy-Item store\Install-StoreTest.ps1 dist\Install-StoreTest.ps1
+          Copy-Item tools\Test-StandardUser-PowerWrite.ps1 dist\Test-StandardUser-PowerWrite.ps1
+          Copy-Item tools\Run-WackLocal.ps1 dist\Run-WackLocal.ps1
+          Copy-Item tools\Test-DpiAwareness.ps1 dist\Test-DpiAwareness.ps1
+          Copy-Item src\PowerCfg.ps1 dist\PowerCfg.ps1
+          Copy-Item src\StoreRuntimeCompat.ps1 dist\StoreRuntimeCompat.ps1
+
+      - name: Upload Store test package
+        uses: actions/upload-artifact@v4
+        with:
+          name: HypeTek-CPU-Throttling-Store-Test
+          path: |
+            dist/HypeTek-CPU-Throttling-v0.2.0-Store-Test.msix
+            dist/HypeTek-CPU-Throttling-Store-Test.cer
+            dist/HypeTek-CPU-Throttling.embedded.manifest
+            dist/Install-StoreTest.ps1
+            dist/Test-StandardUser-PowerWrite.ps1
+            dist/Test-DpiAwareness.ps1
+            dist/Run-WackLocal.ps1
+            dist/PowerCfg.ps1
+            dist/StoreRuntimeCompat.ps1
+            dist/MS_STORE_TEST_README.md
+          if-no-files-found: error
