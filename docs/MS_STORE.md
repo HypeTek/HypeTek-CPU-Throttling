@@ -73,8 +73,11 @@ Confirmed working in the packaged application:
 - Windows energy-plan interaction
 - supported CPU power settings without UAC
 - Store runtime helper loading
+- profile persistence across app close/reopen
+- profile export
+- profile import and subsequent apply
 
-Restart persistence and profile import/export remain explicit checklist items until separately reconfirmed for the packaged build.
+The packaged app's core functional validation is therefore complete for the current Store-test candidate.
 
 ## DPI / WACK findings
 
@@ -123,6 +126,8 @@ Therefore the persistent local `DPIAwarenessValidation` warning is documented as
 - non-elevated power writes: PASS
 - packaged application launch without UAC: PASS
 - packaged profile/editor/power-plan operation: PASS
+- profile persistence after close/reopen: PASS
+- profile export/import/apply: PASS
 - local WACK: 0 FAIL, one persistent DPI analyzer WARNING
 - embedded manifest extraction: PASS (`PerMonitorV2` present)
 - runtime DPI context: PASS (`PerMonitorV2`)
@@ -152,7 +157,8 @@ If the Store certification surfaces the same DPI warning, include the above evid
 - [x] Runtime `SetProcessDpiAwarenessContext` call present and detected by WACK static analysis.
 - [x] Real running main window verified as `PerMonitorV2`.
 - [x] Persistent local WACK DPI warning documented as an analyzer discrepancy with runtime evidence.
-- [ ] Restart persistence and import/export explicitly reconfirmed in the packaged app.
+- [x] Profile persistence across app restart explicitly reconfirmed in packaged app.
+- [x] Profile export/import/apply explicitly reconfirmed in packaged app.
 - [ ] Partner Center developer account ready.
 - [ ] App name reserved and official Store identity copied into manifest.
 - [ ] Final Store icons/screenshots/listing text prepared.
