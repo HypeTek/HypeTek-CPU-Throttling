@@ -4,9 +4,9 @@ Status: experimental branch `feature/ms-store-msix`. The stable v0.2.0 release o
 
 ## Goal
 
-Build a Microsoft Store candidate without requiring an elevated process at runtime. The current production EXE uses `requireAdministrator`; this branch adds a separate Store manifest using `asInvoker` and a dedicated MSIX build.
+Build a Microsoft Store candidate without requiring an elevated process at runtime. The production EXE on `main` uses `requireAdministrator`; this branch adds a separate Store path using `asInvoker`, packaged Win32/full-trust execution and MSIX.
 
-Microsoft's current MSIX guidance says packaged desktop apps can run as full-trust/medium-integrity desktop processes, and packaged Win32 apps declare `runFullTrust`. Microsoft also warns that apps requiring elevation for functionality are not accepted through the normal Store certification path. For that reason this experiment deliberately does **not** declare `allowElevation`.
+The Store test package deliberately does **not** declare `allowElevation`.
 
 Official references:
 
@@ -20,30 +20,30 @@ Official references:
 
 ## What this branch adds
 
-- `src/app.store.manifest` — native EXE manifest with `asInvoker` and explicit DPI awareness.
+- `src/app.store.manifest` — non-elevated native EXE manifest with DPI awareness.
 - `store/AppxManifest.xml` — development MSIX manifest for a packaged Win32 desktop app.
 - `src/StoreRuntimeCompat.ps1` — Store-specific runtime compatibility helpers loaded before `Main.ps1`.
-- `tools/Test-StandardUser-PowerWrite.ps1` — safe permission probe that writes the already configured values back to the active power scheme while running non-elevated.
-- `tools/Run-WackLocal.ps1` — local Windows App Certification Kit runner for the installed Store-test package; creates a timestamped certification report under the user's Documents folder.
-- `tools/Test-DpiAwareness.ps1` — runtime probe that inspects the actual main window DPI-awareness context and verifies `PerMonitorV2`.
-- `store/Install-StoreTest.ps1` — development-only helper that replaces a previous Store-test package, refreshes the temporary CI certificate trust, and installs the current MSIX.
-- `.github/workflows/build-store-msix.yml` — builds a separate x64 Store-test EXE, verifies the **embedded** native manifest, stages the existing app files, creates an MSIX, signs it with an ephemeral development certificate, and uploads the package plus test helpers as a CI artifact.
-- `Test-Syntax.ps1` validates the Store runtime function contract and helper-script syntax.
+- `tools/Test-StandardUser-PowerWrite.ps1` — safe non-elevated permission probe.
+- `tools/Run-WackLocal.ps1` — local Windows App Certification Kit runner.
+- `tools/Test-DpiAwareness.ps1` — runtime probe for the actual main-window DPI context.
+- `store/Install-StoreTest.ps1` — development sideload installer/helper.
+- `.github/workflows/build-store-msix.yml` — builds, validates, packages, signs and uploads the Store-test MSIX.
+- CI extraction of the compiled EXE manifest with `mt.exe` to prove `asInvoker` and `PerMonitorV2` are embedded in the final binary.
 
-## Important: development identity
+## Development identity
 
-`store/AppxManifest.xml` currently uses:
+`store/AppxManifest.xml` still uses development-only values:
 
 - Identity Name: `HypeTek.CPUThrottling.Dev`
 - Publisher: `CN=HypeTek Development`
 
-These values are only for sideload testing. Before a real Store submission, reserve the app name in Partner Center and replace the identity fields with the exact values assigned by Microsoft.
+Before a real Store submission, reserve the app name in Partner Center and replace these with Microsoft's assigned Store identity/publisher values.
 
-The temporary development certificate is self-signed. Windows App Installer requires it to be trusted in the **Local Computer / Trusted People** certificate store before the test MSIX can be installed. That one-time test setup requires administrator rights; the installed Store-test application itself runs non-elevated. A real Microsoft Store package is re-signed by Microsoft and does not need this development-certificate step.
+The test certificate is self-signed and is trusted only for sideload testing. The installed Store-test application itself runs non-elevated.
 
 ## Real-hardware permission result
 
-On 2026-09-11 the standard-user write probe was run from a **non-elevated** Windows PowerShell 5.1 session (`Elevated token: False`) against the active Balanced scheme (`381b4222-f694-41f0-9685-ff5bb260df2e`).
+On 2026-09-11 the standard-user power-write probe was run from a **non-elevated** Windows PowerShell 5.1 session (`Elevated token: False`) against the active Balanced power scheme.
 
 All supported writes succeeded without elevation:
 
@@ -57,13 +57,11 @@ All supported writes succeeded without elevation:
 
 Result: `PASS: Supported power-setting writes succeeded without elevation.`
 
-This demonstrates that the tested Windows power-policy write path does not require administrator rights on the tested hardware.
-
 ## Packaged MSIX real-hardware result
 
-The development MSIX installed successfully on Windows 11 x64 and launched normally from the Start menu without an application UAC prompt.
+The development MSIX installs successfully on Windows 11 x64 and launches normally from Start without an application UAC prompt.
 
-The initial packaged test exposed a missing runtime compatibility helper (`Get-ActivePowerScheme`). The Store branch now loads `StoreRuntimeCompat.ps1` before `Main.ps1` and CI validates the Store runtime contract from source. The corrected package was then retested successfully.
+The initial packaged test exposed a missing runtime helper (`Get-ActivePowerScheme`). `StoreRuntimeCompat.ps1` now supplies the Store runtime compatibility layer before `Main.ps1`, and CI validates the required function contract.
 
 Confirmed working in the packaged application:
 
@@ -78,36 +76,58 @@ Confirmed working in the packaged application:
 
 Restart persistence and profile import/export remain explicit checklist items until separately reconfirmed for the packaged build.
 
-## Windows App Certification Kit result
+## DPI / WACK findings
 
-Three local WACK reports have now been reviewed.
-
-All three have the same high-level result:
+Four local WACK reports have now been reviewed. All have the same high-level result:
 
 - Overall result: `WARNING`
 - all non-DPI tests: `PASS`
 - `FAIL`: none
 - only warning: `DPIAwarenessValidation`
 
-The first report was produced before the DPI remediation. The second report still warned after adding the manifest declaration. The third report (`HypeTek-CPU-Throttling-WACK-20260911-023006.xml`) still reports the same single warning even though WACK's own static-analysis section now explicitly detects `user32.dll!SetProcessDpiAwarenessContext` in the launcher.
+The latest report is `HypeTek-CPU-Throttling-WACK-20260911-024957.xml`.
 
-The Store launcher currently has both Microsoft-documented DPI mechanisms:
+The current Store launcher has both Microsoft-documented DPI mechanisms:
 
-- embedded manifest: legacy `dpiAware=true/pm` plus modern `dpiAwareness=PerMonitorV2`
-- runtime fallback: `SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)` before any UI is created
+- embedded manifest: `dpiAware=true/pm`
+- embedded manifest: `dpiAwareness=PerMonitorV2`
+- runtime fallback before UI creation: `SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)`
 
-CI now extracts the compiled EXE's actual resource manifest with `mt.exe` and fails the build unless the **embedded** manifest still contains `asInvoker` and `PerMonitorV2`. Run #41 passed this embedded-manifest verification as part of the full Store-test pipeline.
+CI now extracts the **compiled EXE's actual manifest resource** with `mt.exe` and fails if `asInvoker` or `PerMonitorV2` are missing. The Store build passes this check.
 
-Because the local WACK DPI analyzer continues to warn despite detecting the DPI API itself, the remaining task is to verify the effective DPI context of the real running application window. `tools/Test-DpiAwareness.ps1` performs that check. If the actual window reports `PerMonitorV2`, retain the current DPI configuration and document the local WACK warning for the final Store certification notes instead of repeatedly changing working UI behavior. The Store's own certification remains the authoritative acceptance gate.
+The latest WACK report's own static analysis also detects `user32.dll!SetProcessDpiAwarenessContext`, yet the separate `DPIAwarenessValidation` test still emits a warning saying the same binary is not DPI-aware.
 
-## DPI validation sequence
+### Runtime DPI proof: PASS
 
-1. Install the newest Store-test artifact with `Install-StoreTest.ps1` as administrator.
-2. Launch HypeTek CPU Throttling normally from Start and leave the main window open.
-3. From a normal PowerShell session run `Test-DpiAwareness.ps1` from the same artifact.
-4. Target result: `PASS: The actual application window is running as PerMonitorV2 DPI-aware.`
-5. If PASS, retain the manifest + runtime DPI configuration and document the persistent local WACK warning.
-6. Continue with Partner Center identity, listing and final Store certification rather than repeatedly changing a confirmed DPI-aware process.
+A real running packaged app window was inspected with `tools/Test-DpiAwareness.ps1` while the app was open from the Start menu.
+
+Observed result:
+
+```text
+Process ID: 26612
+Main HWND : 0x420E80
+Context   : PerMonitorV2
+PASS: The actual application window is running as PerMonitorV2 DPI-aware.
+```
+
+This gives three independent positive signals for DPI awareness:
+
+1. the final EXE contains the `PerMonitorV2` manifest declaration,
+2. the final EXE contains and WACK detects the `SetProcessDpiAwarenessContext` call,
+3. Windows reports the actual running app window as `PerMonitorV2`.
+
+Therefore the persistent local `DPIAwarenessValidation` warning is documented as a local WACK analyzer discrepancy rather than a reason to keep modifying confirmed-working DPI behavior. The final Microsoft Store certification remains the authoritative acceptance gate.
+
+## Validation evidence retained for Store certification notes
+
+- non-elevated power writes: PASS
+- packaged application launch without UAC: PASS
+- packaged profile/editor/power-plan operation: PASS
+- local WACK: 0 FAIL, one persistent DPI analyzer WARNING
+- embedded manifest extraction: PASS (`PerMonitorV2` present)
+- runtime DPI context: PASS (`PerMonitorV2`)
+
+If the Store certification surfaces the same DPI warning, include the above evidence and the exact local WACK report in certification/support notes instead of weakening or removing the working DPI configuration.
 
 ## Store-readiness checklist
 
@@ -121,16 +141,17 @@ Because the local WACK DPI analyzer continues to warn despite detecting the DPI 
 - [x] Standard-user permission probe passes on real target hardware.
 - [x] MSIX installs and launches on a Windows 11 x64 test machine.
 - [x] Missing Store runtime helpers fixed and loaded before `Main.ps1`.
-- [x] Source-aware CI runtime-contract test added for required power helpers.
-- [x] Profile apply/editor apply retested successfully in the fixed MSIX.
-- [x] Windows energy-plan interaction retested successfully in the fixed MSIX.
+- [x] Source-aware CI runtime-contract validation.
+- [x] Profile apply/editor apply retested successfully in packaged app.
+- [x] Windows energy-plan interaction retested successfully in packaged app.
 - [x] Tested CPU power/profile changes work without application UAC.
 - [x] Local WACK runner added to the Store artifact.
-- [x] Three WACK runs completed with 0 FAIL results.
-- [x] DPI manifest declaration present.
+- [x] Four local WACK runs completed with 0 FAIL results.
+- [x] DPI manifest declarations present in source.
+- [x] CI verifies the final EXE's embedded DPI manifest.
 - [x] Runtime `SetProcessDpiAwarenessContext` call present and detected by WACK static analysis.
-- [x] CI extracts and validates the compiled EXE's embedded DPI manifest.
-- [ ] Real running main window explicitly verified as `PerMonitorV2`.
+- [x] Real running main window verified as `PerMonitorV2`.
+- [x] Persistent local WACK DPI warning documented as an analyzer discrepancy with runtime evidence.
 - [ ] Restart persistence and import/export explicitly reconfirmed in the packaged app.
 - [ ] Partner Center developer account ready.
 - [ ] App name reserved and official Store identity copied into manifest.
