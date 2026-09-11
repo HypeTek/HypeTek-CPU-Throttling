@@ -96,7 +96,7 @@ The Store launcher currently has both Microsoft-documented DPI mechanisms:
 - embedded manifest: legacy `dpiAware=true/pm` plus modern `dpiAwareness=PerMonitorV2`
 - runtime fallback: `SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)` before any UI is created
 
-CI now extracts the compiled EXE's actual resource manifest with `mt.exe` and fails the build unless the **embedded** manifest still contains `asInvoker` and `PerMonitorV2`. This removes the possibility that the source manifest exists but was not embedded by the compiler.
+CI now extracts the compiled EXE's actual resource manifest with `mt.exe` and fails the build unless the **embedded** manifest still contains `asInvoker` and `PerMonitorV2`. Run #41 passed this embedded-manifest verification as part of the full Store-test pipeline.
 
 Because the local WACK DPI analyzer continues to warn despite detecting the DPI API itself, the remaining task is to verify the effective DPI context of the real running application window. `tools/Test-DpiAwareness.ps1` performs that check. If the actual window reports `PerMonitorV2`, retain the current DPI configuration and document the local WACK warning for the final Store certification notes instead of repeatedly changing working UI behavior. The Store's own certification remains the authoritative acceptance gate.
 
