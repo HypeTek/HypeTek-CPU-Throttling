@@ -134,6 +134,10 @@ Therefore the persistent local `DPIAwarenessValidation` warning is documented as
 
 If the Store certification surfaces the same DPI warning, include the above evidence and the exact local WACK report in certification/support notes instead of weakening or removing the working DPI configuration.
 
+## Technical Store status
+
+The current development Store/MSIX path has passed the intended local functional validation. The remaining work is publication-specific: Partner Center onboarding/identity, final listing assets and metadata, final Store-identity rebuild, and Microsoft certification.
+
 ## Store-readiness checklist
 
 - [x] Stable `main` branch kept separate.
@@ -159,6 +163,7 @@ If the Store certification surfaces the same DPI warning, include the above evid
 - [x] Persistent local WACK DPI warning documented as an analyzer discrepancy with runtime evidence.
 - [x] Profile persistence across app restart explicitly reconfirmed in packaged app.
 - [x] Profile export/import/apply explicitly reconfirmed in packaged app.
+- [x] Local technical Store/MSIX validation complete.
 - [ ] Partner Center developer account ready.
 - [ ] App name reserved and official Store identity copied into manifest.
 - [ ] Final Store icons/screenshots/listing text prepared.
