@@ -16,10 +16,11 @@ Official references:
 - https://learn.microsoft.com/windows/apps/package-and-deploy/choose-distribution-path
 - https://learn.microsoft.com/windows/msix/package/create-certificate-package-signing
 - https://learn.microsoft.com/windows/uwp/debug-test-perf/windows-app-certification-kit
+- https://learn.microsoft.com/windows/win32/hidpi/setting-the-default-dpi-awareness-for-a-process
 
 ## What this branch adds
 
-- `src/app.store.manifest` — native EXE manifest with `asInvoker`.
+- `src/app.store.manifest` — native EXE manifest with `asInvoker` and explicit DPI awareness.
 - `store/AppxManifest.xml` — development MSIX manifest for a packaged Win32 desktop app.
 - `src/StoreRuntimeCompat.ps1` — Store-specific runtime compatibility helpers loaded before `Main.ps1`.
 - `tools/Test-StandardUser-PowerWrite.ps1` — safe permission probe that writes the already configured values back to the active power scheme while running non-elevated.
@@ -59,7 +60,7 @@ This demonstrates that the tested Windows power-policy write path does not requi
 
 ## Packaged MSIX real-hardware result
 
-The development MSIX from build run #22 installed successfully on Windows 11 x64 and launched normally from the Start menu without an application UAC prompt.
+The development MSIX installed successfully on Windows 11 x64 and launched normally from the Start menu without an application UAC prompt.
 
 The initial packaged test exposed a missing runtime compatibility helper (`Get-ActivePowerScheme`). The Store branch now loads `StoreRuntimeCompat.ps1` before `Main.ps1` and CI validates the Store runtime contract from source. The corrected package was then retested successfully.
 
@@ -76,40 +77,39 @@ Confirmed working in the packaged application:
 
 Restart persistence and profile import/export remain explicit checklist items until separately reconfirmed for the packaged build.
 
+## Windows App Certification Kit result
+
+The first full local WACK run completed successfully at the process level (`appcert.exe test` exit code `0`). The detailed XML report was then inspected.
+
+Result summary:
+
+- Overall result: `WARNING`
+- 23 tests: `PASS`
+- 1 test: `WARNING`
+- 0 tests: `FAIL`
+
+The only warning was `DPIAwarenessValidation`. WACK reported that `HypeTek-CPU-Throttling.exe` was not DPI-aware. No other Store compliance, UAC, manifest, branding, blocked-executable, security, architecture or metadata test failed.
+
+The Store EXE manifest has therefore been updated to declare DPI awareness explicitly with the Microsoft-documented manifest settings:
+
+- legacy fallback: `dpiAware=true`
+- modern Windows mode: `dpiAwareness=PerMonitorV2`
+
+The Store CI now validates that these DPI declarations remain present before compiling the native host. A fresh WACK run on the new package is required to confirm a clean result.
+
 ## Current Store CI
 
-A Store artifact containing the local WACK runner has completed the full CI pipeline successfully: PowerShell 5.1 parser/runtime checks, non-elevated manifest validation, x64 EXE build, MSIX packaging, development signing, signature verification and artifact upload.
+The Store-test pipeline builds the non-elevated x64 EXE, validates the runtime contract and Store manifest (including DPI-awareness declarations), stages the MSIX payload, signs/verifies the development package and uploads the test artifact successfully.
 
-## Windows App Certification Kit
+## WACK validation sequence
 
-Microsoft recommends running the Windows App Certification Kit before Store submission. The kit must run in the context of an active user session; therefore the final certification test is intentionally a local real-machine gate instead of being treated as a hosted CI substitute.
-
-The Store artifact includes `Run-WackLocal.ps1`. With the current MSIX installed, open **Windows PowerShell 5.1 as Administrator** and run:
-
-```powershell
-powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\Run-WackLocal.ps1
-```
-
-The helper:
-
-1. locates `appcert.exe`,
-2. finds the installed `HypeTek.CPUThrottling.Dev` package,
-3. resets WACK state,
-4. runs the certification workflow against the installed package, and
-5. writes a timestamped XML report under `Documents\HypeTek\CPU-Throttling\WACK`.
-
-If `appcert.exe` is missing, install the current Windows SDK / Windows App Certification Kit first.
-
-## Validation sequence
-
-1. Install the latest Store-test artifact with `Install-StoreTest.ps1` as administrator.
-2. Launch HypeTek CPU Throttling normally from Start and verify there is no application UAC prompt.
-3. Verify GUI, telemetry, profile switching, editor apply and Windows energy-plan switching.
-4. Reconfirm restart persistence and profile import/export.
-5. Close the application.
-6. Open Windows PowerShell 5.1 as Administrator and run `Run-WackLocal.ps1` from the extracted artifact folder.
-7. Review the generated WACK XML/HTML report and fix any failing tests before Store submission.
-8. Reserve the app name in Partner Center, replace the development identity with Microsoft's assigned identity/publisher values, finalize listing assets, rebuild and rerun WACK on the final candidate.
+1. Install the newest Store-test artifact with `Install-StoreTest.ps1` as administrator.
+2. Launch HypeTek CPU Throttling normally from Start and do a short smoke test.
+3. Close the application.
+4. Open Windows PowerShell 5.1 as Administrator and run `Run-WackLocal.ps1` from the **same artifact**.
+5. Review the generated report under `Documents\HypeTek\CPU-Throttling\WACK`.
+6. Target result: `OVERALL_RESULT="PASS"`, no `FAIL`, and preferably no `WARNING` entries.
+7. After a clean development WACK result, reserve the app name in Partner Center, replace the development identity with Microsoft's assigned identity/publisher values, rebuild and rerun WACK on the final Store candidate.
 
 ## Store-readiness checklist
 
@@ -128,9 +128,12 @@ If `appcert.exe` is missing, install the current Windows SDK / Windows App Certi
 - [x] Windows energy-plan interaction retested successfully in the fixed MSIX.
 - [x] Tested CPU power/profile changes work without application UAC.
 - [x] Local WACK runner added to the Store artifact.
-- [x] Store CI artifact with WACK helper builds and signs successfully.
+- [x] First WACK run completed with 0 FAIL results.
+- [x] First WACK XML analyzed: 23 PASS, 1 DPI-awareness WARNING.
+- [x] DPI-awareness declarations added to the Store EXE manifest.
+- [x] Store CI validates DPI-awareness declarations.
+- [ ] Fresh WACK run returns a clean result after the DPI fix.
 - [ ] Restart persistence and import/export explicitly reconfirmed in the packaged app.
-- [ ] Windows App Certification Kit passes on the packaged build.
 - [ ] Partner Center developer account ready.
 - [ ] App name reserved and official Store identity copied into manifest.
 - [ ] Final Store icons/screenshots/listing text prepared.
