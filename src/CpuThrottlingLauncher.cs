@@ -6,6 +6,7 @@ using System.Windows.Forms;
 using System.Management.Automation;
 using System.Management.Automation.Runspaces;
 using System.Reflection;
+using System.Runtime.InteropServices;
 
 [assembly: AssemblyTitle("HypeTek CPU Throttling")]
 [assembly: AssemblyProduct("HypeTek CPU Throttling")]
@@ -19,9 +20,36 @@ namespace HypeTek.CpuThrottling.Launcher
 {
     internal static class Program
     {
+        // DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2 = ((DPI_AWARENESS_CONTEXT)-4)
+        // The manifest remains the primary declaration. This API call is an early
+        // runtime fallback and also gives WACK a second standards-compliant DPI signal.
+        private static readonly IntPtr DpiAwarenessContextPerMonitorAwareV2 = new IntPtr(-4);
+
+        [DllImport("user32.dll", SetLastError = true)]
+        [return: MarshalAs(UnmanagedType.Bool)]
+        private static extern bool SetProcessDpiAwarenessContext(IntPtr dpiContext);
+
+        private static void TryEnablePerMonitorV2Dpi()
+        {
+            try
+            {
+                // Must run before any UI is created. If the embedded manifest has
+                // already established the process DPI mode Windows may return FALSE
+                // with ERROR_ACCESS_DENIED; that is expected and can be ignored.
+                SetProcessDpiAwarenessContext(DpiAwarenessContextPerMonitorAwareV2);
+            }
+            catch (EntryPointNotFoundException)
+            {
+                // Defensive fallback for unsupported Windows versions. The MSIX
+                // currently targets Windows 10 2004+ where this API is available.
+            }
+        }
+
         [STAThread]
         private static int Main()
         {
+            TryEnablePerMonitorV2Dpi();
+
             string exeDir = AppDomain.CurrentDomain.BaseDirectory.TrimEnd(
                 Path.DirectorySeparatorChar, Path.AltDirectorySeparatorChar);
             string appDir = Path.Combine(exeDir, "app");
