@@ -25,9 +25,10 @@ Official references:
 - `src/StoreRuntimeCompat.ps1` — Store-specific runtime compatibility helpers loaded before `Main.ps1`.
 - `tools/Test-StandardUser-PowerWrite.ps1` — safe permission probe that writes the already configured values back to the active power scheme while running non-elevated.
 - `tools/Run-WackLocal.ps1` — local Windows App Certification Kit runner for the installed Store-test package; creates a timestamped certification report under the user's Documents folder.
+- `tools/Test-DpiAwareness.ps1` — runtime probe that inspects the actual main window DPI-awareness context and verifies `PerMonitorV2`.
 - `store/Install-StoreTest.ps1` — development-only helper that replaces a previous Store-test package, refreshes the temporary CI certificate trust, and installs the current MSIX.
-- `.github/workflows/build-store-msix.yml` — builds a separate x64 Store-test EXE, stages the existing app files, creates an MSIX, signs it with an ephemeral development certificate, and uploads the MSIX + public certificate + test helpers as a CI artifact.
-- `Test-Syntax.ps1` additionally validates the Store runtime function contract and WACK helper syntax so missing runtime helpers and helper-script parser errors are caught by CI.
+- `.github/workflows/build-store-msix.yml` — builds a separate x64 Store-test EXE, verifies the **embedded** native manifest, stages the existing app files, creates an MSIX, signs it with an ephemeral development certificate, and uploads the package plus test helpers as a CI artifact.
+- `Test-Syntax.ps1` validates the Store runtime function contract and helper-script syntax.
 
 ## Important: development identity
 
@@ -79,37 +80,34 @@ Restart persistence and profile import/export remain explicit checklist items un
 
 ## Windows App Certification Kit result
 
-The first full local WACK run completed successfully at the process level (`appcert.exe test` exit code `0`). The detailed XML report was then inspected.
+Three local WACK reports have now been reviewed.
 
-Result summary:
+All three have the same high-level result:
 
 - Overall result: `WARNING`
-- 23 tests: `PASS`
-- 1 test: `WARNING`
-- 0 tests: `FAIL`
+- all non-DPI tests: `PASS`
+- `FAIL`: none
+- only warning: `DPIAwarenessValidation`
 
-The only warning was `DPIAwarenessValidation`. WACK reported that `HypeTek-CPU-Throttling.exe` was not DPI-aware. No other Store compliance, UAC, manifest, branding, blocked-executable, security, architecture or metadata test failed.
+The first report was produced before the DPI remediation. The second report still warned after adding the manifest declaration. The third report (`HypeTek-CPU-Throttling-WACK-20260911-023006.xml`) still reports the same single warning even though WACK's own static-analysis section now explicitly detects `user32.dll!SetProcessDpiAwarenessContext` in the launcher.
 
-The Store EXE manifest has therefore been updated to declare DPI awareness explicitly with the Microsoft-documented manifest settings:
+The Store launcher currently has both Microsoft-documented DPI mechanisms:
 
-- legacy fallback: `dpiAware=true`
-- modern Windows mode: `dpiAwareness=PerMonitorV2`
+- embedded manifest: legacy `dpiAware=true/pm` plus modern `dpiAwareness=PerMonitorV2`
+- runtime fallback: `SetProcessDpiAwarenessContext(DPI_AWARENESS_CONTEXT_PER_MONITOR_AWARE_V2)` before any UI is created
 
-The Store CI now validates that these DPI declarations remain present before compiling the native host. A fresh WACK run on the new package is required to confirm a clean result.
+CI now extracts the compiled EXE's actual resource manifest with `mt.exe` and fails the build unless the **embedded** manifest still contains `asInvoker` and `PerMonitorV2`. This removes the possibility that the source manifest exists but was not embedded by the compiler.
 
-## Current Store CI
+Because the local WACK DPI analyzer continues to warn despite detecting the DPI API itself, the remaining task is to verify the effective DPI context of the real running application window. `tools/Test-DpiAwareness.ps1` performs that check. If the actual window reports `PerMonitorV2`, the persistent local WACK result should be treated as an analyzer discrepancy and documented for the final Store submission/certification notes rather than changing working DPI behavior blindly.
 
-The Store-test pipeline builds the non-elevated x64 EXE, validates the runtime contract and Store manifest (including DPI-awareness declarations), stages the MSIX payload, signs/verifies the development package and uploads the test artifact successfully.
-
-## WACK validation sequence
+## DPI validation sequence
 
 1. Install the newest Store-test artifact with `Install-StoreTest.ps1` as administrator.
-2. Launch HypeTek CPU Throttling normally from Start and do a short smoke test.
-3. Close the application.
-4. Open Windows PowerShell 5.1 as Administrator and run `Run-WackLocal.ps1` from the **same artifact**.
-5. Review the generated report under `Documents\HypeTek\CPU-Throttling\WACK`.
-6. Target result: `OVERALL_RESULT="PASS"`, no `FAIL`, and preferably no `WARNING` entries.
-7. After a clean development WACK result, reserve the app name in Partner Center, replace the development identity with Microsoft's assigned identity/publisher values, rebuild and rerun WACK on the final Store candidate.
+2. Launch HypeTek CPU Throttling normally from Start and leave the main window open.
+3. From a normal PowerShell session run `Test-DpiAwareness.ps1` from the same artifact.
+4. Target result: `PASS: The actual application window is running as PerMonitorV2 DPI-aware.`
+5. If PASS, retain the manifest + runtime DPI configuration and document the local WACK warning as an analyzer discrepancy.
+6. Continue with Partner Center identity, listing and final certification rather than repeatedly changing a confirmed DPI-aware process.
 
 ## Store-readiness checklist
 
@@ -128,11 +126,11 @@ The Store-test pipeline builds the non-elevated x64 EXE, validates the runtime c
 - [x] Windows energy-plan interaction retested successfully in the fixed MSIX.
 - [x] Tested CPU power/profile changes work without application UAC.
 - [x] Local WACK runner added to the Store artifact.
-- [x] First WACK run completed with 0 FAIL results.
-- [x] First WACK XML analyzed: 23 PASS, 1 DPI-awareness WARNING.
-- [x] DPI-awareness declarations added to the Store EXE manifest.
-- [x] Store CI validates DPI-awareness declarations.
-- [ ] Fresh WACK run returns a clean result after the DPI fix.
+- [x] Three WACK runs completed with 0 FAIL results.
+- [x] DPI manifest declaration present.
+- [x] Runtime `SetProcessDpiAwarenessContext` call present and detected by WACK static analysis.
+- [x] CI extracts and validates the compiled EXE's embedded DPI manifest.
+- [ ] Real running main window explicitly verified as `PerMonitorV2`.
 - [ ] Restart persistence and import/export explicitly reconfirmed in the packaged app.
 - [ ] Partner Center developer account ready.
 - [ ] App name reserved and official Store identity copied into manifest.
