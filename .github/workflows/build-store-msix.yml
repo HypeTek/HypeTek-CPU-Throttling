@@ -81,6 +81,24 @@ jobs:
 
           if ($LASTEXITCODE -ne 0) { throw "C# compiler failed with exit code $LASTEXITCODE" }
 
+      - name: Verify embedded EXE manifest
+        shell: powershell
+        run: |
+          $mt = Get-ChildItem "${env:ProgramFiles(x86)}\Windows Kits\10\bin\*\x64\mt.exe" -ErrorAction SilentlyContinue | Sort-Object FullName -Descending | Select-Object -First 1 -ExpandProperty FullName
+          if (-not $mt) { throw 'mt.exe not found' }
+
+          & $mt -nologo '-inputresource:dist\HypeTek-CPU-Throttling.exe;#1' '-out:dist\HypeTek-CPU-Throttling.embedded.manifest'
+          if ($LASTEXITCODE -ne 0) { throw "mt.exe failed to extract embedded manifest: $LASTEXITCODE" }
+
+          $embedded = Get-Content .\dist\HypeTek-CPU-Throttling.embedded.manifest -Raw
+          if ($embedded -notmatch 'requestedExecutionLevel\s+level="asInvoker"') {
+            throw 'Built EXE embedded manifest lost asInvoker.'
+          }
+          if ($embedded -notmatch '<dpiAwareness[^>]*>\s*PerMonitorV2') {
+            throw 'Built EXE embedded manifest does not contain PerMonitorV2.'
+          }
+          Write-Host 'Embedded EXE manifest contains asInvoker and PerMonitorV2.' -ForegroundColor Green
+
       - name: Stage MSIX payload and assets
         shell: powershell
         run: |
@@ -154,8 +172,6 @@ jobs:
           & $signtool sign /fd SHA256 /f dist\HypeTek-CPU-Throttling-Store-Test.pfx /p $passwordText /v dist\HypeTek-CPU-Throttling-v0.2.0-Store-Test.msix
           if ($LASTEXITCODE -ne 0) { throw "SignTool failed: $LASTEXITCODE" }
 
-          # Trust only on the disposable CI runner so signature verification can
-          # validate the complete chain. The PFX is deleted before artifact upload.
           Import-Certificate -FilePath dist\HypeTek-CPU-Throttling-Store-Test.cer -CertStoreLocation 'Cert:\LocalMachine\TrustedPeople' | Out-Null
           & $signtool verify /pa /v dist\HypeTek-CPU-Throttling-v0.2.0-Store-Test.msix
           if ($LASTEXITCODE -ne 0) { throw "Signature verification failed: $LASTEXITCODE" }
@@ -165,6 +181,7 @@ jobs:
           Copy-Item store\Install-StoreTest.ps1 dist\Install-StoreTest.ps1
           Copy-Item tools\Test-StandardUser-PowerWrite.ps1 dist\Test-StandardUser-PowerWrite.ps1
           Copy-Item tools\Run-WackLocal.ps1 dist\Run-WackLocal.ps1
+          Copy-Item tools\Test-DpiAwareness.ps1 dist\Test-DpiAwareness.ps1
           Copy-Item src\PowerCfg.ps1 dist\PowerCfg.ps1
           Copy-Item src\StoreRuntimeCompat.ps1 dist\StoreRuntimeCompat.ps1
 
@@ -175,8 +192,10 @@ jobs:
           path: |
             dist/HypeTek-CPU-Throttling-v0.2.0-Store-Test.msix
             dist/HypeTek-CPU-Throttling-Store-Test.cer
+            dist/HypeTek-CPU-Throttling.embedded.manifest
             dist/Install-StoreTest.ps1
             dist/Test-StandardUser-PowerWrite.ps1
+            dist/Test-DpiAwareness.ps1
             dist/Run-WackLocal.ps1
             dist/PowerCfg.ps1
             dist/StoreRuntimeCompat.ps1
